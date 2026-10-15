@@ -1,0 +1,7 @@
+{
+  "name": "Copy of DeliOrderNYC",
+  "description": "A smart ordering assistant for deli workers to track inventory, remember usual orders, and create order lists for suppliers. It's the brain of the store, ensuring no flavor is ever forgotten.",
+  "requestFramePermissions": [],
+  "prompt": "",
+  "majorCapabilities": []
+}
