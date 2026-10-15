@@ -1,9 +1,12 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
 import { ArrowDownTrayIcon, CheckCircleIcon, ClipboardListIcon, ShareIcon, AlertTriangleIcon } from './shared/icons';
 import {
   DataExport,
+  StorageClassification,
+  VerificationResult,
+  classifyStorage,
   createExport,
   exportFileName,
   serializeExport,
@@ -17,15 +20,24 @@ interface ExportState {
   exported: DataExport;
   text: string;
   fileName: string;
-  verified: boolean;
-  problems: string[];
+  verification: VerificationResult;
 }
+
+const readClassification = (): StorageClassification => {
+  try {
+    return classifyStorage(window.localStorage);
+  } catch {
+    // Storage blocked entirely; the export button will report the real error.
+    return { appOwnedKeys: [], otherKeys: [] };
+  }
+};
 
 const buttonBase = 'flex items-center justify-center gap-2 font-bold py-3 px-4 rounded-lg transition-colors disabled:opacity-60';
 
 /**
- * "Export My Data": a user-initiated, read-only JSON export of everything this origin has in
- * localStorage. Offers three ways out (download, share, copy) plus a selectable text box,
+ * "Export My Data": a user-initiated, read-only JSON export of DeliOrderNYC's data in
+ * localStorage. Keys belonging to other apps on the same web address are listed (names and sizes
+ * only) and left out unless the person ticks a box to include them. Offers three ways out (download, share, copy) plus a selectable text box,
  * because sandboxed previews such as Google AI Studio can block downloads or clipboard access.
  */
 const DataExportPanel: React.FC = () => {
@@ -35,7 +47,19 @@ const DataExportPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [includeOtherKeys, setIncludeOtherKeys] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
+
+  // Re-read when an export finishes so the list reflects what is stored right now.
+  const classification = useMemo(readClassification, [result]);
+  const otherKeys = classification.otherKeys;
+
+  const handleIncludeOtherKeysChange = (checked: boolean) => {
+    setIncludeOtherKeys(checked);
+    // The current export no longer matches the choice; make the person export again.
+    setResult(null);
+    setStatus(null);
+  };
 
   const handleExport = async () => {
     setIsWorking(true);
@@ -52,10 +76,10 @@ const DataExportPanel: React.FC = () => {
         userAgent: navigator.userAgent,
         appName: APP_NAME,
         appVersion: APP_VERSION,
-      });
+      }, { includeOtherKeys: includeOtherKeys ? otherKeys.map(entry => entry.key) : [] });
       const text = serializeExport(exported);
       const verification = await verifyExportText(text, storage);
-      setResult({ exported, text, fileName: exportFileName(now), verified: verification.ok, problems: verification.problems });
+      setResult({ exported, text, fileName: exportFileName(now), verification });
     } catch (e) {
       setResult(null);
       setError(t('exportFailed', { message: e instanceof Error ? e.message : String(e) }));
@@ -122,6 +146,7 @@ const DataExportPanel: React.FC = () => {
   };
 
   const summary = result?.exported.summary;
+  const verification = result?.verification;
   const parseErrorCount = result?.exported.parseErrors.length ?? 0;
   const show = (value: number | null | undefined) => (value ?? 0);
 
@@ -135,6 +160,29 @@ const DataExportPanel: React.FC = () => {
       <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t('exportTitle')}</h2>
       <p className="text-sm text-slate-600 dark:text-slate-300">{t('exportDescription')}</p>
       <p className="text-xs text-brand-muted mt-2 break-all">{t('exportOriginNote', { origin: window.location.origin })}</p>
+
+      {otherKeys.length > 0 && (
+        <div className="mt-4 p-3 rounded-md text-sm bg-amber-400/10 text-amber-800 dark:text-amber-300">
+          <p className="font-semibold">{t('exportOtherKeysTitle')}</p>
+          <p className="mt-1">{t('exportOtherKeysBody', { count: otherKeys.length })}</p>
+          <ul className="mt-2 space-y-1 font-mono text-xs" dir="ltr">
+            {otherKeys.map(entry => (
+              <li key={entry.key} className="break-all">
+                {entry.key} <span className="text-brand-muted">({t('exportOtherKeySize', { size: entry.length })})</span>
+              </li>
+            ))}
+          </ul>
+          <label className="mt-3 flex items-center gap-3 min-h-[44px] cursor-pointer font-semibold">
+            <input
+              type="checkbox"
+              className="h-5 w-5 flex-shrink-0"
+              checked={includeOtherKeys}
+              onChange={e => handleIncludeOtherKeysChange(e.target.checked)}
+            />
+            <span>{t('exportIncludeOtherKeys')}</span>
+          </label>
+        </div>
+      )}
 
       <motion.button
         onClick={handleExport}
@@ -157,21 +205,37 @@ const DataExportPanel: React.FC = () => {
               products: show(summary.productCount),
               suppliers: show(summary.supplierCount),
               lines: show(summary.orderLineCount),
-              keys: summary.storageKeyCount,
+              keys: summary.includedKeyCount,
             })}
           </p>
+          {summary.excludedKeyCount > 0 && (
+            <p className="text-xs text-brand-muted">{t('exportExcludedNote', { count: summary.excludedKeyCount })}</p>
+          )}
 
-          {result.verified ? (
+          {verification?.status === 'verified' && (
             <p className="p-3 rounded-md text-sm font-semibold flex items-center gap-2 bg-green-500/10 text-green-700 dark:text-green-400">
               <CheckCircleIcon className="h-5 w-5 flex-shrink-0" />
               <span>{t('exportVerified')}</span>
             </p>
-          ) : (
+          )}
+          {verification?.status === 'unverified' && (
+            <div role="alert" className="p-3 rounded-md text-sm font-semibold bg-amber-400/10 text-amber-800 dark:text-amber-300">
+              <p className="flex items-center gap-2">
+                <AlertTriangleIcon className="h-5 w-5 flex-shrink-0" />
+                <span>{t('exportUnverified')}</span>
+              </p>
+              <ul className="list-disc ms-5 font-normal">
+                {verification.warnings.map(warning => <li key={warning}>{warning}</li>)}
+              </ul>
+            </div>
+          )}
+          {verification?.status === 'invalid' && (
             <div role="alert" className="p-3 rounded-md text-sm font-semibold bg-red-500/10 text-red-600 dark:text-red-400">
               <p>{t('exportVerifyFailed')}</p>
               <ul className="list-disc ms-5 font-normal">
-                {result.problems.map(problem => <li key={problem}>{problem}</li>)}
+                {verification.problems.map(problem => <li key={problem}>{problem}</li>)}
               </ul>
+              <p className="mt-2 font-normal">{t('exportInvalidHint')}</p>
             </div>
           )}
 

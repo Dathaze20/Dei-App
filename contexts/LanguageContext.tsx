@@ -112,8 +112,8 @@ const translations = {
     "exportOriginNote": "This export only includes data saved at this web address: {origin}. A copy of the app opened at a different address keeps its own separate data.",
     "exportButton": "Export My Data",
     "exportPreparing": "Preparing export...",
-    "exportSummary": "{products} products · {suppliers} suppliers · {lines} order lines · {keys} stored items",
-    "exportVerified": "Verified: the export matches the data stored on this device.",
+    "exportSummary": "{products} products · {suppliers} suppliers · {lines} order lines · {keys} saved items included",
+    "exportVerified": "Verified: the SHA-256 checksum was confirmed and the export matches the data stored on this device.",
     "exportVerifyFailed": "Verification failed:",
     "exportUnverifiedNote": "Stock quantities and prices are marked as unverified because they may be sample values.",
     "exportParseWarning": "{count} stored item(s) could not be read as JSON. Their exact text is still included in the export.",
@@ -121,7 +121,14 @@ const translations = {
     "shareFile": "Share File",
     "exportManualCopy": "If Download, Share and Copy are blocked, select all the text below and copy it manually.",
     "exportFailed": "Export failed: {message}",
-    "exportDownloadStarted": "Download started: {fileName}"
+    "exportDownloadStarted": "Download started: {fileName}",
+    "exportUnverified": "Exported, but NOT cryptographically verified. Your data is included, so keep this file, but treat it as an unverified backup:",
+    "exportInvalidHint": "This export may be incomplete. Try exporting again. You can still save this copy as a rescue file.",
+    "exportOtherKeysTitle": "Other saved data at this web address",
+    "exportOtherKeysBody": "{count} saved item(s) here don't belong to DeliOrderNYC. Another app on the same address may have saved them. They are left out unless you choose to include them. Only their names and sizes are shown.",
+    "exportOtherKeySize": "{size} characters",
+    "exportIncludeOtherKeys": "Also include these items in the export",
+    "exportExcludedNote": "{count} item(s) from other apps were not included."
   },
   es: {
     "deliBrainOfStore": "El cerebro de la tienda.",
@@ -231,8 +238,8 @@ const translations = {
     "exportOriginNote": "Esta exportación solo incluye los datos guardados en esta dirección web: {origin}. Una copia de la app abierta en otra dirección tiene sus propios datos por separado.",
     "exportButton": "Exportar Mis Datos",
     "exportPreparing": "Preparando la exportación...",
-    "exportSummary": "{products} productos · {suppliers} proveedores · {lines} líneas de pedido · {keys} elementos guardados",
-    "exportVerified": "Verificado: la exportación coincide con los datos guardados en este dispositivo.",
+    "exportSummary": "{products} productos · {suppliers} proveedores · {lines} líneas de pedido · {keys} elementos guardados incluidos",
+    "exportVerified": "Verificado: se confirmó la suma de comprobación SHA-256 y la exportación coincide con los datos guardados en este dispositivo.",
     "exportVerifyFailed": "La verificación falló:",
     "exportUnverifiedNote": "Las cantidades de stock y los precios se marcan como no verificados porque pueden ser valores de ejemplo.",
     "exportParseWarning": "{count} elemento(s) guardado(s) no se pudieron leer como JSON. Su texto exacto se incluye en la exportación.",
@@ -240,7 +247,14 @@ const translations = {
     "shareFile": "Compartir Archivo",
     "exportManualCopy": "Si Descargar, Compartir y Copiar están bloqueados, selecciona todo el texto de abajo y cópialo manualmente.",
     "exportFailed": "La exportación falló: {message}",
-    "exportDownloadStarted": "Descarga iniciada: {fileName}"
+    "exportDownloadStarted": "Descarga iniciada: {fileName}",
+    "exportUnverified": "Exportado, pero SIN verificación criptográfica. Tus datos están incluidos, así que guarda este archivo, pero trátalo como una copia no verificada:",
+    "exportInvalidHint": "Esta exportación puede estar incompleta. Intenta exportar de nuevo. Aun así puedes guardar esta copia como archivo de rescate.",
+    "exportOtherKeysTitle": "Otros datos guardados en esta dirección web",
+    "exportOtherKeysBody": "{count} elemento(s) guardado(s) aquí no pertenecen a DeliOrderNYC. Puede que otra app en la misma dirección los haya guardado. Se excluyen a menos que elijas incluirlos. Solo se muestran sus nombres y tamaños.",
+    "exportOtherKeySize": "{size} caracteres",
+    "exportIncludeOtherKeys": "Incluir también estos elementos en la exportación",
+    "exportExcludedNote": "{count} elemento(s) de otras apps no se incluyeron."
   },
   ar: {
     "deliBrainOfStore": "عقل المتجر.",
@@ -350,8 +364,8 @@ const translations = {
     "exportOriginNote": "يتضمن هذا التصدير فقط البيانات المحفوظة على عنوان الويب هذا: {origin}. نسخة التطبيق المفتوحة على عنوان مختلف تحتفظ ببياناتها المنفصلة.",
     "exportButton": "تصدير بياناتي",
     "exportPreparing": "جارٍ تجهيز التصدير...",
-    "exportSummary": "{products} منتج · {suppliers} مورد · {lines} بند في الطلب · {keys} عنصر محفوظ",
-    "exportVerified": "تم التحقق: التصدير يطابق البيانات المحفوظة على هذا الجهاز.",
+    "exportSummary": "{products} منتج · {suppliers} مورد · {lines} بند في الطلب · {keys} عنصر محفوظ مضمّن",
+    "exportVerified": "تم التحقق: تم تأكيد المجموع الاختباري SHA-256 والتصدير يطابق البيانات المحفوظة على هذا الجهاز.",
     "exportVerifyFailed": "فشل التحقق:",
     "exportUnverifiedNote": "كميات المخزون والأسعار معلَّمة كغير مؤكدة لأنها قد تكون قيمًا تجريبية.",
     "exportParseWarning": "تعذّرت قراءة {count} عنصر محفوظ بصيغة JSON. النص الأصلي لا يزال مضمّنًا في التصدير.",
@@ -359,7 +373,14 @@ const translations = {
     "shareFile": "مشاركة الملف",
     "exportManualCopy": "إذا كان التنزيل والمشاركة والنسخ محظورة، حدّد كل النص أدناه وانسخه يدويًا.",
     "exportFailed": "فشل التصدير: {message}",
-    "exportDownloadStarted": "بدأ التنزيل: {fileName}"
+    "exportDownloadStarted": "بدأ التنزيل: {fileName}",
+    "exportUnverified": "تم التصدير، لكن دون تحقق تشفيري. بياناتك مضمّنة، لذا احتفظ بهذا الملف، لكن اعتبره نسخة احتياطية غير مؤكدة:",
+    "exportInvalidHint": "قد يكون هذا التصدير غير مكتمل. حاول التصدير مرة أخرى. لا يزال بإمكانك حفظ هذه النسخة كملف إنقاذ.",
+    "exportOtherKeysTitle": "بيانات محفوظة أخرى على عنوان الويب هذا",
+    "exportOtherKeysBody": "{count} عنصر محفوظ هنا لا ينتمي إلى DeliOrderNYC. ربما حفظه تطبيق آخر على نفس العنوان. يتم استبعادها ما لم تختر تضمينها. تُعرض أسماؤها وأحجامها فقط.",
+    "exportOtherKeySize": "{size} حرف",
+    "exportIncludeOtherKeys": "تضمين هذه العناصر أيضًا في التصدير",
+    "exportExcludedNote": "لم يتم تضمين {count} عنصر من تطبيقات أخرى."
   }
 };
 

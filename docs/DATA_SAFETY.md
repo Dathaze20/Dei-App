@@ -2,8 +2,8 @@
 
 ## What "Export My Data" does
 
-**Manage → Backup & Export → Export My Data** creates one JSON file containing everything this
-copy of the app has saved in the browser:
+**Manage → Backup & Export → Export My Data** creates one JSON file containing everything
+DeliOrderNYC has saved in the browser at this web address:
 
 | Saved item | Storage key | In the export as |
 |---|---|---|
@@ -13,14 +13,17 @@ copy of the app has saved in the browser:
 | Deli name | `inventory_deliName` | `data.deliName` + `raw.inventory_deliName` |
 | Theme | `theme` | `data.theme` + `raw.theme` |
 | Language | `language` | `data.language` + `raw.language` |
-| Anything else saved at this address | (any key) | `raw.<key>` |
+| Any other `inventory_…` or `deliordernyc_…` key (app data this version doesn't know by name) | (prefix) | `raw.<key>` |
+| Data saved by **other apps** at the same address | (any other key) | **Not included** unless you tick the box (see Privacy) |
 
 The file also records:
 - `format` (`"deliordernyc-export"`) and `schemaVersion` (`1`)
 - `exportedAt` (UTC timestamp)
 - `source.origin`, the web address the data came from (see below)
 - `summary` (counts)
-- `rawChecksum` (SHA-256 of the raw section, to detect a damaged or cut-off copy)
+- `storageKeys`: which keys were included, and the **names and sizes only** of any keys left out
+- `rawChecksumAlgorithm` (`"SHA-256"`) and `rawChecksum` (SHA-256 of the raw section, to detect a
+  damaged or cut-off copy; `null` if the browser could not compute it)
 
 **Exporting is read-only.** It never writes, deletes, resets or reorders anything that is stored.
 Automated tests prove this (`utils/dataExport.test.ts`, "never writes to, removes from or clears
@@ -39,9 +42,35 @@ which numbers a person later typed in. Its prices are sample values. So every ex
 `notes.stockValuesVerified: false` and `notes.pricesVerified: false`. See
 [proposals/0001-stock-count-verification.md](proposals/0001-stock-count-verification.md).
 
+### Privacy: other apps' data at the same web address
+Several apps can share one web address. For example, every project on `dathaze20.github.io`
+shares the same browser storage. The export is careful about this:
+
+- **Included automatically:** the six keys the app uses today, plus any key starting with
+  `inventory_` (the prefix the app has always used for its data) or `deliordernyc_` (reserved for
+  future data). Deli data is never dropped, even if this version doesn't recognize the key.
+- **Never included silently:** every other key. Before you export, the panel lists those keys by
+  **name and size only**, never their contents.
+- **Never dropped silently:** if one of them is actually deli data, tick **"Also include these
+  items in the export"**. The file's `storageKeys` section always records what was included and
+  what was left out (names and sizes only).
+
+### Integrity: what "Verified" means
+After exporting, the app re-reads the file it produced and gives it one of three statuses. A future
+**Restore** will use the same check.
+
+| Status | Shown as | Meaning | What a restore may do |
+|---|---|---|---|
+| **verified** | green "Verified" | The SHA-256 checksum is present and well formed, it was recomputed and matched, and the file matches what is stored | Restore after the normal preview |
+| **unverified** | amber "Exported, but NOT cryptographically verified" | The data is there, but its integrity could not be proven: the checksum is missing, or this browser could not compute SHA-256 | Restore only after an explicit "I understand this backup is unverified" confirmation |
+| **invalid** | red "Verification failed" | The checksum is malformed or doesn't match, the file is cut off or isn't an export, or it differs from what is stored | Never restore automatically |
+
+Only a recomputed, matching checksum can produce **verified**. If Web Crypto is unavailable (for
+example on a non-HTTPS page), you can still export and download your data as a rescue copy. It is
+saved with `rawChecksum: null` and is always labelled unverified, never verified.
+
 ### Getting the file out of the app
-After exporting, the app checks the result against what is stored. If they match it shows
-**"Verified"**. Then use any of:
+Use any of:
 1. **Download File**: saves `deliordernyc-backup-YYYY-MM-DD-HHMMSS.json`.
 2. **Share File**: Android share sheet (Drive, Gmail, WhatsApp…). It only appears where the
    browser supports sharing files.
@@ -93,7 +122,9 @@ unverified. **Before pasting, don't clear browser data, don't "reset" the app, a
 an incognito window**: those use different, empty storage.
 
 **Step 2. Export at the old address.** Open the preview and go to **Manage → Backup & Export →
-Export My Data**. Wait for "Verified". Download, share or copy the file. AI Studio previews can
+Export My Data**. Wait for the status: green "Verified" is what you want. An amber "unverified"
+file still contains your data, so keep it. If the panel lists "other saved data", tick the box only
+for items you recognize as deli data. Download, share or copy the file. AI Studio previews can
 block downloads; if so, use Copy Text or the manual copy box, paste into a note or email, and
 save it as a `.json` file.
 
