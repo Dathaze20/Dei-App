@@ -35,7 +35,27 @@ for (const name of names) {
   const before = pad(rawBefore, width, height);
   const after = pad(rawAfter, width, height);
   const diff = new PNG({ width, height });
-  const changed = pixelmatch(before.data, after.data, diff.data, width, height, { threshold: 0.1, alpha: 0.35 });
+  const changed = pixelmatch(before.data, after.data, diff.data, width, height, { threshold: 0.1, alpha: 0.35, diffColor: [255, 0, 0] });
+  // Where the changes are: the CSS-pixel row bands (gaps under 8 px merged) containing changed pixels.
+  const scale = Number(process.env.VISUAL_SCALE ?? 2.625);
+  const changedRows = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      if (diff.data[i] === 255 && diff.data[i + 1] === 0 && diff.data[i + 2] === 0) {
+        changedRows.push(y);
+        break;
+      }
+    }
+  }
+  const bands = [];
+  for (const y of changedRows) {
+    const css = Math.floor(y / scale);
+    const last = bands[bands.length - 1];
+    if (last && css - last[1] <= 8) last[1] = css;
+    else bands.push([css, css]);
+  }
+  const where = bands.map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(', ');
   const gap = 24;
   const sheet = new PNG({ width: width * 3 + gap * 2, height });
   sheet.data.fill(255);
@@ -43,7 +63,7 @@ for (const name of names) {
   PNG.bitblt(after, sheet, 0, 0, width, height, width + gap, 0);
   PNG.bitblt(diff, sheet, 0, 0, width, height, (width + gap) * 2, 0);
   writeFileSync(`${out}/${name}`, PNG.sync.write(sheet));
-  rows.push({ name, changed: (changed / (width * height)) * 100, note: rawBefore.height !== rawAfter.height ? 'different heights' : '' });
+  rows.push({ name, changed: (changed / (width * height)) * 100, note: [rawBefore.height !== rawAfter.height ? 'different heights' : '', where ? `changed at y ${where} px` : ''].filter(Boolean).join('; ') });
 }
 
 const table = [
@@ -51,7 +71,7 @@ const table = [
   '| --- | ---: | --- |',
   ...rows.map(r => `| ${r.name.replace(/\.png$/, '')} | ${r.changed === null ? '-' : r.changed.toFixed(2) + '%'} | ${r.note} |`),
 ].join('\n');
-const report = `## Visual comparison: main (before) vs this branch (after)\n\nGalaxy A17 viewport 412×915 at 2.625×, fixed clock, placeholder images replaced by grey in both.\nSide-by-side images (before | after | changed pixels in red) are in the \`visual-comparison\` artifact.\n\n${table}\n`;
+const report = `## Visual comparison: main (before) vs this branch (after)\n\nGalaxy A17 viewport 412×915 at 2.625×, fixed date, placeholder images replaced by grey in both. \"y\" ranges are CSS pixels from the top of the 915 px screen.\nSide-by-side images (before | after | changed pixels in red) are in the \`visual-comparison\` artifact.\n\n${table}\n`;
 writeFileSync(`${out}/summary.md`, report);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, report);
 console.log(report);

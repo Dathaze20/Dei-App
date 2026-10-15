@@ -16,8 +16,22 @@ const GREY_PIXEL = Buffer.from(
 );
 
 test.beforeEach(async ({ page }) => {
-  // (No fake clock: freezing time also froze framer-motion's animations. The share text's time
-  // line is the only clock-dependent text; it is masked in the screenshot instead.)
+  // The share text and its QR code include the current date and time. Fix `Date` (only Date:
+  // Playwright's fake clock also froze framer-motion's animations) so both runs encode the same.
+  await page.addInitScript(() => {
+    const fixed = new Date('2026-10-01T15:00:00-04:00').getTime();
+    const RealDate = Date;
+    class FixedDate extends RealDate {
+      constructor(...args: unknown[]) {
+        if (args.length === 0) super(fixed);
+        else super(...(args as [string]));
+      }
+      static now() {
+        return fixed;
+      }
+    }
+    (window as unknown as { Date: DateConstructor }).Date = FixedDate as DateConstructor;
+  });
   await page.route(/^https:\/\/placehold\.co\//, route => route.fulfill({ contentType: 'image/png', body: GREY_PIXEL }));
 });
 
@@ -35,7 +49,6 @@ for (const screen of SCREENS) {
       path: `${OUT}/${screen.name}.png`,
       animations: 'disabled',
       caret: 'hide',
-      mask: [page.locator('textarea[readonly]')],
     });
   });
 }
