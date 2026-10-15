@@ -179,6 +179,14 @@ describe('privacy: keys from other apps on the same web address', () => {
     expect(result.summary.excludedKeyCount).toBe(2);
   });
 
+  it('never exports restore control keys (deliordernyc_sys_…)', async () => {
+    const { storage } = makeStorage({ ...appData, deliordernyc_sys_restore_lock: '{"startedAt":"x"}' });
+    const exported = await createExport(storage, context);
+    expect(exported.raw.deliordernyc_sys_restore_lock).toBeUndefined();
+    expect(exported.storageKeys.excludedOther.map(entry => entry.key)).not.toContain('deliordernyc_sys_restore_lock');
+    expect((await verifyExportText(serializeExport(exported), storage)).status).toBe('verified');
+  });
+
   it('keeps unknown keys with the app prefix, so possible deli data is never lost', () => {
     const { storage } = makeStorage({ ...appData, inventory_orderHistory: '[{"id":1}]' });
     const result = buildExport(storage, context);

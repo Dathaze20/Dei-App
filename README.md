@@ -8,7 +8,8 @@ Originally built in Google AI Studio. All data is stored in the browser on the d
 ## Protecting your data
 
 Use **Manage → Backup & Export → Export My Data** to save a JSON copy of everything the app has
-stored. Data saved at one web address (for example the AI Studio preview) is not visible to a copy
+stored, and **Manage → Restore from Backup** to load one back. A restore always saves a verified
+safety snapshot first and can be undone. Data saved at one web address (for example the AI Studio preview) is not visible to a copy
 of the app at another address. See [docs/DATA_SAFETY.md](docs/DATA_SAFETY.md) before moving
 between copies.
 
@@ -22,7 +23,8 @@ npm run dev         # start the dev server on http://localhost:3000
 npm run typecheck   # TypeScript check (tsc --noEmit)
 npm test            # unit tests (Vitest)
 npm run build       # type-check, then production build into dist/
-npm run verify      # everything CI runs: type-check, tests, build
+npm run verify      # type-check, unit tests, build
+npm run test:e2e    # browser tests at Galaxy A17 size (needs `npm run build` first)
 ```
 
 `npm run build` runs the type check first, so a build can no longer succeed while hiding

@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, ReactNode, useContext } from 'react';
+import { guardedSetItem, readTracked } from '../utils/storageGuard';
 
 type Theme = 'light' | 'dark';
 
@@ -12,7 +13,7 @@ export const ThemeContext = createContext<ThemeContextType | undefined>(undefine
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      const storedTheme = localStorage.getItem('theme') as Theme | null;
+      const storedTheme = readTracked('theme') as Theme | null;
       if (storedTheme) {
         return storedTheme;
       }
@@ -25,7 +26,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
-    localStorage.setItem('theme', theme);
+    guardedSetItem('theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {

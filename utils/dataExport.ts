@@ -50,6 +50,17 @@ export const APP_KEY_PREFIXES = ['inventory_', 'deliordernyc_'] as const;
 export const isAppOwnedKey = (key: string): boolean =>
   KNOWN_KEY_NAMES.has(key) || APP_KEY_PREFIXES.some(prefix => key.startsWith(prefix));
 
+/**
+ * Keys the app uses to coordinate a restore between tabs (for example the restore lock).
+ * They are control signals, not deli data: never exported, never snapshotted, never restored.
+ */
+export const SYSTEM_KEY_PREFIX = 'deliordernyc_sys_';
+
+export const isSystemKey = (key: string): boolean => key.startsWith(SYSTEM_KEY_PREFIX);
+
+/** App-owned keys that hold deli data: everything the app owns except system control keys. */
+export const isDataKey = (key: string): boolean => isAppOwnedKey(key) && !isSystemKey(key);
+
 /** The read-only subset of the Web Storage API the export needs. */
 export interface ReadableStorage {
   readonly length: number;
@@ -115,6 +126,8 @@ export interface DataExport {
    * export time; such a backup can still be saved but can never be reported as verified.
    */
   rawChecksum: string | null;
+  /** Set only on automatic safety snapshots, e.g. "pre-restore". Ignored by older readers. */
+  purpose?: string;
 }
 
 export interface ExportContext {
@@ -148,11 +161,15 @@ const listKeys = (storage: ReadableStorage): string[] => {
   return keys.sort();
 };
 
-/** Splits what is stored at this web address into the app's keys and everyone else's. Read-only. */
+/**
+ * Splits what is stored at this web address into the app's data keys and everyone else's.
+ * System control keys are left out of both. Read-only.
+ */
 export const classifyStorage = (storage: ReadableStorage): StorageClassification => {
   const appOwnedKeys: string[] = [];
   const otherKeys: OtherStorageKey[] = [];
   for (const key of listKeys(storage)) {
+    if (isSystemKey(key)) continue;
     if (isAppOwnedKey(key)) {
       appOwnedKeys.push(key);
     } else {
