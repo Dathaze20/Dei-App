@@ -500,3 +500,113 @@ describe('analyzeBackup and diffRestore', () => {
     ]);
   });
 });
+
+describe('stale preview: data changed after the comparison was reviewed', () => {
+  /** What another tab saves after the preview: a price, a stock count, or the order. */
+  const otherTabEdits: [string, (data: Record<string, string>) => Record<string, string>][] = [
+    ['a product price', data => {
+      const products = JSON.parse(data.inventory_products);
+      products[0] = { ...products[0], costPrice: 41.5 };
+      return { ...data, inventory_products: JSON.stringify(products) };
+    }],
+    ['a stock quantity', data => {
+      const products = JSON.parse(data.inventory_products);
+      products[3] = { ...products[3], currentStockUnits: 4 };
+      return { ...data, inventory_products: JSON.stringify(products) };
+    }],
+    ['the order', data => ({
+      ...data,
+      inventory_currentOrder: JSON.stringify({ items: [{ productId: realProducts[7].id, quantity: 2 }], createdAt: '2026-10-15T21:00:00.000Z' }),
+    })],
+  ];
+
+  const applyEdit = (storage: Storage, edited: Record<string, string>) => {
+    for (const [key, value] of Object.entries(edited)) if (storage.getItem(key) !== value) storage.setItem(key, value);
+  };
+
+  it.each(otherTabEdits)('another tab changes %s before confirmation: refused, nothing changed', async (_label, edit) => {
+    const { storage, engine, dump, store } = setup();
+    const reviewed = readDataKeys(storage); // the preview
+    applyEdit(storage, edit(reviewed)); // another tab saves
+    const afterEdit = dump();
+    const outcome = await engine.restore(REAL, 'pre-restore', { expectedCurrent: reviewed });
+    expect(outcome).toMatchObject({ status: 'refused', reason: 'data-changed' });
+    expect(dump()).toEqual(afterEdit); // the other tab's change is kept, nothing else changed
+    expect(store.journal).toBeUndefined();
+    expect(store.snapshots.size).toBe(0);
+    expect(areWritesSuspended()).toBe(false);
+  });
+
+  it.each(otherTabEdits)('another tab changes %s after the snapshot, just before the first write: refused, nothing lost', async (_label, edit) => {
+    const { storage, engine, dump, store } = setup();
+    // Earlier snapshots must survive this refusal.
+    await engine.restore({ ...REAL, inventory_deliName: 'earlier' });
+    resetGuardForTests();
+    const reviewedAfterEarlier = readDataKeys(storage);
+    const earlier = await store.listSnapshots();
+    // The other tab saves at the worst moment: after the snapshot and journal were saved.
+    const putJournal = store.putJournal;
+    store.putJournal = async record => {
+      await putJournal(record);
+      applyEdit(storage, edit(readDataKeys(storage)));
+    };
+    const outcome = await engine.restore(REAL, 'pre-restore', { expectedCurrent: reviewedAfterEarlier });
+    store.putJournal = putJournal;
+    expect(outcome).toMatchObject({ status: 'refused', reason: 'data-changed' });
+    // The other tab's save is still there; the restore wrote nothing.
+    expect(readDataKeys(storage)).toEqual(edit(reviewedAfterEarlier));
+    expect(dump()[LOCK_KEY]).toBeUndefined();
+    expect(store.journal).toBeUndefined();
+    // Only the unused new snapshot was removed: the earlier recovery snapshot is untouched.
+    expect(await store.listSnapshots()).toEqual(earlier);
+    expect(areWritesSuspended()).toBe(false);
+  });
+
+  it('the same check protects Undo and Start Fresh (no preview): a save after the snapshot is never lost', async () => {
+    const { storage, engine, store } = setup();
+    const putJournal = store.putJournal;
+    store.putJournal = async record => {
+      await putJournal(record);
+      storage.setItem('inventory_deliName', 'Saved by another tab mid-restore');
+    };
+    expect(await engine.restore(REAL)).toMatchObject({ status: 'refused', reason: 'data-changed' });
+    expect(storage.getItem('inventory_deliName')).toBe('Saved by another tab mid-restore');
+  });
+
+  it('if the journal cannot be cleared after refusing, the snapshot is kept so the next start can resolve it', async () => {
+    const { storage, engine, store } = setup();
+    const reviewed = readDataKeys(storage);
+    const putJournal = store.putJournal;
+    store.putJournal = async record => {
+      await putJournal(record);
+      storage.setItem('inventory_deliName', 'changed');
+    };
+    store.clearJournal = async () => {
+      throw new Error('IndexedDB unavailable');
+    };
+    expect(await engine.restore(REAL, 'pre-restore', { expectedCurrent: reviewed })).toMatchObject({ reason: 'data-changed' });
+    expect(store.journal).toBeDefined();
+    expect(store.snapshots.has(store.journal!.snapshotId)).toBe(true);
+  });
+
+  it('changes to other apps’ data after the preview do not block the restore', async () => {
+    const { storage, engine, dump } = setup();
+    const reviewed = readDataKeys(storage);
+    storage.setItem('other_app_auth', 'rotated by the other app');
+    storage.setItem('brand_new_other_app_key', '1');
+    const outcome = await engine.restore(REAL, 'pre-restore', { expectedCurrent: reviewed });
+    expect(outcome.status).toBe('restored');
+    expect(readDataKeys(storage)).toEqual(REAL);
+    expect(dump().other_app_auth).toBe('rotated by the other app');
+  });
+
+  it('an unchanged preview restores normally, and Undo still returns exactly to the reviewed data', async () => {
+    const { storage, engine } = setup();
+    const reviewed = readDataKeys(storage);
+    expect((await engine.restore(REAL, 'pre-restore', { expectedCurrent: reviewed })).status).toBe('restored');
+    expect(readDataKeys(storage)).toEqual(REAL);
+    resetGuardForTests();
+    expect((await engine.undoLastRestore()).status).toBe('restored');
+    expect(readDataKeys(storage)).toEqual(reviewed);
+  });
+});

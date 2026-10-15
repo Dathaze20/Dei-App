@@ -175,6 +175,11 @@ exactly what was there before.
    - which products change, and which fields (for example `costPrice`, `currentStockUnits`)
    - deli name, theme and language changes
 5. You tick *"I understand this replaces DeliOrderNYC's data on this device"*.
+6. **The preview must still be true.** The app remembers the exact deli data the comparison was
+   made from. If anything changes before the restore writes (a price, a stock count or the order,
+   on this page or in another tab), the restore is refused, nothing is changed, and the preview is
+   cleared. You have to check the backup again and confirm the new comparison. Changes to other
+   apps' data never block a restore.
 
 ### How a restore is protected
 Browser storage (`localStorage`) cannot change several values in one all-or-nothing step, so a
@@ -185,8 +190,9 @@ the next one starts (`utils/dataRestore.ts`):
 |---|---|---|
 | 1 | Refuse if an earlier restore is unresolved, the browser can't compute SHA-256, or there isn't room for twice the snapshot and journal plus 1 MB | Nothing changed |
 | 2 | Pause all automatic saving in this tab; set a lock other tabs listen for | Nothing changed (if storage is too full for the lock, restore refuses) |
-| 3 | Save a **safety snapshot** of the current data to IndexedDB, read it back, and verify it byte-for-byte and by SHA-256 | Nothing changed |
+| 3 | Save a **safety snapshot** of the current data to IndexedDB, read it back, and verify it byte-for-byte and by SHA-256. The snapshot must equal the reviewed preview. | Nothing changed |
 | 4 | Save a **journal** (the snapshot's id and the exact target data) to IndexedDB and read it back | Nothing changed |
+| 4b | **Immediately before the first write**, check the data still equals the snapshot and the reviewed preview. This also runs for Undo and Start Fresh, so a save from another tab after the snapshot is never lost. | Refused: nothing changed; only this restore's own unused snapshot and journal are removed |
 | 5 | Write the backup's values, remove deli keys not in the backup, then **read everything back** | → step 6 |
 | 6 | Match: clear the journal and reload. Error or mismatch: **write the snapshot back and read it back** | → step 7 |
 | 7 | If even that fails: keep the journal, snapshot and lock, keep saving paused, refuse every further restore, and show the **Data Recovery Needed** screen | — |
@@ -254,6 +260,10 @@ Before this PR, the last page to save silently won. With a single tab, nothing c
 4. **Free-space checks are estimates.** `navigator.storage.estimate()` covers IndexedDB, but the
    separate `localStorage` limit (about 5 MB) can't be measured in advance. If it runs out during a
    restore, the restore rolls back.
-5. **Browsers without Web Locks** fall back to the storage-event signal between tabs, which doesn't
+5. **The last check before writing narrows the window to a few milliseconds but cannot close it.**
+   Another tab runs in its own process, so a save from it could in principle land between that
+   check and the writes. Other tabs pause their saving as soon as the restore starts, which makes
+   this very unlikely, and the journal and snapshot still allow Undo.
+6. **Browsers without Web Locks** fall back to the storage-event signal between tabs, which doesn't
    stop two restores started at exactly the same moment. Current Chrome on Android and Safari
    support Web Locks.

@@ -245,7 +245,21 @@ export type RefusalReason =
   | 'snapshot-failed'
   | 'snapshot-unverified'
   | 'journal-failed'
-  | 'no-snapshot';
+  | 'no-snapshot'
+  | 'data-changed';
+
+export const DATA_CHANGED_MESSAGE =
+  "DeliOrderNYC's data on this device changed after it was reviewed (for example in another tab). " +
+  'Nothing was changed. Check the backup again to review the updated comparison.';
+
+export interface RestoreOptions {
+  /**
+   * The exact deli data (data keys only) the person reviewed in the preview. If the data on the
+   * device no longer matches it when the restore is about to write, the restore is refused.
+   * Other apps' keys and system keys are not part of it, so changes to them never block a restore.
+   */
+  expectedCurrent?: Record<string, string>;
+}
 
 export type RestoreOutcome =
   | { status: 'restored'; snapshotId: string }
@@ -423,8 +437,15 @@ export const createRestoreEngine = (env: RestoreEnvironment) => {
    * Replaces DeliOrderNYC's data with `target`. On success, automatic saving stays paused: the
    * caller must reload the page so every screen reads the restored data.
    */
-  const restore = (target: Record<string, string>, purpose: SnapshotPurpose = 'pre-restore'): Promise<RestoreOutcome> =>
+  const restore = (
+    target: Record<string, string>,
+    purpose: SnapshotPurpose = 'pre-restore',
+    options: RestoreOptions = {},
+  ): Promise<RestoreOutcome> =>
     withLock(async () => {
+      const { expectedCurrent } = options;
+      const matchesReview = (data: Record<string, string>) => !expectedCurrent || sameData(data, expectedCurrent);
+
       try {
         if (await store.getJournal()) {
           return refuse('unresolved-restore', 'An earlier restore has not been resolved. Resolve it before starting another.');
@@ -440,6 +461,9 @@ export const createRestoreEngine = (env: RestoreEnvironment) => {
       if (badKeys.length > 0 || invalid.length > 0) {
         return refuse('invalid-target', [...badKeys.map(key => `${key} is not DeliOrderNYC data.`), ...invalid].join(' '));
       }
+
+      // Check 1 of 3: the data still matches the reviewed preview (cheap, before any work).
+      if (!matchesReview(readDataKeys(storage))) return refuse('data-changed', DATA_CHANGED_MESSAGE);
 
       const currentBytes = byteLength(JSON.stringify(readDataKeys(storage)));
       if (!(await hasEnoughSpace(currentBytes, target))) {
@@ -461,6 +485,27 @@ export const createRestoreEngine = (env: RestoreEnvironment) => {
 
       const snapshot = await createVerifiedSnapshot(purpose);
       if ('status' in snapshot) return giveUp(snapshot);
+      const snapshotRaw = (await snapshotData(snapshot)) ?? {};
+
+      /**
+       * Gives up after a snapshot (and maybe a journal) were saved for a restore that will not run.
+       * Nothing in localStorage was changed. The journal is cleared first; only if that worked is
+       * the new, unused snapshot deleted (never an older recovery copy). If the journal could not
+       * be cleared, the snapshot is kept so the next start can still resolve the journal.
+       */
+      const abandon = async (outcome: RestoreOutcome) => {
+        let journalCleared = true;
+        try {
+          await store.clearJournal();
+        } catch {
+          journalCleared = false;
+        }
+        if (journalCleared) await store.deleteSnapshot(snapshot.id).catch(() => undefined);
+        return giveUp(outcome);
+      };
+
+      // Check 2 of 3: the safety snapshot holds exactly the reviewed data.
+      if (!matchesReview(snapshotRaw)) return abandon(refuse('data-changed', DATA_CHANGED_MESSAGE));
 
       const now = new Date().toISOString();
       const journal: JournalRecord = {
@@ -480,9 +525,16 @@ export const createRestoreEngine = (env: RestoreEnvironment) => {
           throw new Error('the journal did not read back intact');
         }
       } catch (e) {
-        await store.clearJournal().catch(() => undefined);
-        await pruneSnapshots().catch(() => undefined);
-        return giveUp(refuse('journal-failed', `The restore journal could not be saved (${errorText(e)}). Nothing was changed.`));
+        return abandon(refuse('journal-failed', `The restore journal could not be saved (${errorText(e)}). Nothing was changed.`));
+      }
+
+      // Check 3 of 3, immediately before the first write (nothing is awaited between this check and
+      // the writes): the data must still equal the snapshot, and the reviewed preview if there was
+      // one. Otherwise another tab saved something after the snapshot was taken, and writing now
+      // would lose it.
+      const beforeWrite = readDataKeys(storage);
+      if (!sameData(beforeWrite, snapshotRaw) || !matchesReview(beforeWrite)) {
+        return abandon(refuse('data-changed', DATA_CHANGED_MESSAGE));
       }
 
       let failure: string | null = null;

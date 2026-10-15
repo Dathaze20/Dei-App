@@ -5,6 +5,7 @@ import { AlertTriangleIcon, ArrowDownTrayIcon, CheckCircleIcon } from './shared/
 import {
   BackupAnalysis,
   ListDiff,
+  RestoreDiff,
   RestoreOutcome,
   analyzeBackup,
   diffRestore,
@@ -57,14 +58,11 @@ const RestorePanel: React.FC = () => {
   };
   useEffect(refreshSnapshots, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const diff = useMemo(() => {
-    if (!analysis?.canRestore) return null;
-    try {
-      return diffRestore(readDataKeys(window.localStorage), analysis.target);
-    } catch {
-      return null;
-    }
-  }, [analysis]);
+  // The exact deli data on this device when the preview was made, and the comparison shown.
+  // The restore is only allowed to run if the data still equals `baseline` (checked by the engine
+  // inside its lock, right before the first write).
+  const [review, setReview] = useState<{ baseline: Record<string, string>; diff: RestoreDiff } | null>(null);
+  const diff = review?.diff ?? null;
 
   if (!engine) {
     return (
@@ -79,6 +77,7 @@ const RestorePanel: React.FC = () => {
 
   const reset = () => {
     setAnalysis(null);
+    setReview(null);
     setAcknowledged(false);
     setConfirmed(false);
     setMessage(null);
@@ -94,7 +93,14 @@ const RestorePanel: React.FC = () => {
     reset();
     setChecking(true);
     try {
-      setAnalysis(await analyzeBackup(text));
+      const result = await analyzeBackup(text);
+      if (result.canRestore) {
+        const baseline = readDataKeys(window.localStorage);
+        setReview({ baseline, diff: diffRestore(baseline, result.target) });
+      }
+      setAnalysis(result);
+    } catch (e) {
+      setMessage({ tone: 'error', text: `${t('restoreRefused')} ${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setChecking(false);
     }
@@ -112,6 +118,12 @@ const RestorePanel: React.FC = () => {
     }
     setRunning(false);
     refreshSnapshots();
+    if (outcome.status === 'refused' && outcome.reason === 'data-changed') {
+      // The preview is out of date: throw it away so a new comparison must be reviewed and confirmed.
+      reset();
+      setMessage({ tone: 'error', text: t('restoreDataChanged') });
+      return;
+    }
     setMessage(
       outcome.status === 'rolled-back'
         ? { tone: 'warning', text: `${t('restoreRolledBack')} ${outcome.message}` }
@@ -120,10 +132,10 @@ const RestorePanel: React.FC = () => {
   };
 
   const handleRestore = async () => {
-    if (!analysis?.canRestore) return;
+    if (!analysis?.canRestore || !review) return;
     setRunning(true);
     setMessage(null);
-    finish(await engine.restore(analysis.target, 'pre-restore'), 'restored');
+    finish(await engine.restore(analysis.target, 'pre-restore', { expectedCurrent: review.baseline }), 'restored');
   };
 
   const handleUndo = async () => {
@@ -134,7 +146,7 @@ const RestorePanel: React.FC = () => {
   };
 
   const status = analysis?.verification.status;
-  const canSubmit = !!analysis?.canRestore && confirmed && (!analysis.requiresAcknowledgement || acknowledged) && !running;
+  const canSubmit = !!analysis?.canRestore && !!review && confirmed && (!analysis.requiresAcknowledgement || acknowledged) && !running;
 
   const countLine = (label: string, list: { before: number | null; after: number | null }) =>
     t('restoreCountChange', {
