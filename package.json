@@ -9,7 +9,8 @@
     "test": "vitest run",
     "build": "tsc --noEmit && vite build",
     "verify": "npm run typecheck && npm run test && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@google/genai": "^1.9.0",
@@ -21,10 +22,14 @@
     "react-router-dom": "^7.6.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^26.1.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vitest": "^3.2.7"

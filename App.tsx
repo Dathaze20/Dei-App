@@ -9,8 +9,10 @@ import ProductRedirectPage from './pages/ProductRedirectPage';
 import { audioManager } from './utils/audioManager';
 import { AnimatePresence } from 'framer-motion';
 import { useTranslation } from './hooks/useTranslation';
+import StorageStatusBanner from './components/StorageStatusBanner';
+import { StartupNotice } from './utils/safetyBootstrap';
 
-function App() {
+function App({ startupNotice = null }: { startupNotice?: StartupNotice | null }) {
     const location = useLocation();
     const { dir } = useTranslation();
 
@@ -39,6 +41,7 @@ function App() {
     <div dir={dir} className="min-h-screen bg-transparent text-slate-800 dark:text-slate-200 font-sans">
       <Header />
       <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-28 md:pb-8">
+        <StorageStatusBanner notice={startupNotice} />
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<HomePage />} />

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Product, Supplier, Order, OrderItem } from '../types';
 import { audioManager } from '../utils/audioManager';
+import { guardedSetItem, loadGuarded } from '../utils/storageGuard';
 
 const initialSuppliers: Supplier[] = [
   { id: 'sup1', name: "Boar's Head", color: 'bg-red-800' },
@@ -232,44 +233,31 @@ export interface InventoryContextType {
 export const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
 export const InventoryProvider = ({ children }: { children: ReactNode }) => {
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-        const saved = localStorage.getItem('inventory_products');
-        return saved ? JSON.parse(saved) : initialProducts;
-    } catch {
-        return initialProducts;
-    }
-  });
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    try {
-        const saved = localStorage.getItem('inventory_suppliers');
-        return saved ? JSON.parse(saved) : initialSuppliers;
-    } catch {
-        return initialSuppliers;
-    }
-  });
-  const [currentOrder, setCurrentOrder] = useState<Order>(() => {
-     try {
-        const saved = localStorage.getItem('inventory_currentOrder');
-        return saved ? JSON.parse(saved) : { items: [], createdAt: new Date().toISOString() };
-    } catch {
-        return { items: [], createdAt: new Date().toISOString() };
-    }
-  });
-  const [deliName, setDeliName] = useState<string>(() => {
-    try {
-        const saved = localStorage.getItem('inventory_deliName');
-        return saved || "DeliOrderNYC";
-    } catch {
-        return "DeliOrderNYC";
-    }
-  });
+  // Saved data is loaded through the storage guard: a missing value falls back to the sample
+  // data exactly as before, but an unreadable value is left untouched and its key is blocked from
+  // being saved over (see utils/storageGuard.ts).
+  const [products, setProducts] = useState<Product[]>(() =>
+    loadGuarded<Product[]>('inventory_products', { parse: JSON.parse, fallback: () => initialProducts, serialize: JSON.stringify }).value
+  );
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() =>
+    loadGuarded<Supplier[]>('inventory_suppliers', { parse: JSON.parse, fallback: () => initialSuppliers, serialize: JSON.stringify }).value
+  );
+  const [currentOrder, setCurrentOrder] = useState<Order>(() =>
+    loadGuarded<Order>('inventory_currentOrder', {
+      parse: JSON.parse,
+      fallback: () => ({ items: [], createdAt: new Date().toISOString() }),
+      serialize: JSON.stringify,
+    }).value
+  );
+  const [deliName, setDeliName] = useState<string>(() =>
+    loadGuarded<string>('inventory_deliName', { parse: saved => saved || "DeliOrderNYC", fallback: () => "DeliOrderNYC", serialize: name => name }).value
+  );
 
 
-  useEffect(() => { localStorage.setItem('inventory_products', JSON.stringify(products)); }, [products]);
-  useEffect(() => { localStorage.setItem('inventory_suppliers', JSON.stringify(suppliers)); }, [suppliers]);
-  useEffect(() => { localStorage.setItem('inventory_currentOrder', JSON.stringify(currentOrder)); }, [currentOrder]);
-  useEffect(() => { localStorage.setItem('inventory_deliName', deliName); }, [deliName]);
+  useEffect(() => { guardedSetItem('inventory_products', JSON.stringify(products)); }, [products]);
+  useEffect(() => { guardedSetItem('inventory_suppliers', JSON.stringify(suppliers)); }, [suppliers]);
+  useEffect(() => { guardedSetItem('inventory_currentOrder', JSON.stringify(currentOrder)); }, [currentOrder]);
+  useEffect(() => { guardedSetItem('inventory_deliName', deliName); }, [deliName]);
 
 
   const getProductById = useCallback((id: string) => products.find(p => p.id === id), [products]);
