@@ -8,9 +8,11 @@ Arabic and Spanish variants) at the Galaxy A17 viewport (412×915, 2.625×) with
 Placeholder product pictures are replaced with a grey pixel and the share text box is masked
 (it contains the current time), so only the app's own styling can differ.
 
-CI (`visual` job) builds `main` and this branch, photographs both, and runs `compare.mjs`, which
-writes before | after | difference sheets and a table of changed pixels to the job summary and
-the `visual-comparison` artifact.
+CI (`visual` job) builds `main` and this branch, photographs both, plus this branch with Inter
+loaded from Google Fonts (`googlefonts-variant.mjs`) to separate font-file effects. `compare.mjs`
+writes before | after | difference sheets, the changed pixels and where they are, and which
+computed CSS properties differ per screen, to the job summary and the `visual-comparison`
+artifact.
 
 Locally:
 

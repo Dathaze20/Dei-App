@@ -124,6 +124,16 @@ jobs:
           VISUAL_DIST: dist
           VISUAL_LABEL: after
 
+      # This branch again, but with Inter from Google Fonts as main loads it, so the report can
+      # tell font-file differences apart from CSS differences.
+      - name: Screenshots of this branch with Google Fonts
+        run: |
+          node visual/googlefonts-variant.mjs dist dist-googlefonts
+          npx playwright test -c playwright.visual.config.ts
+        env:
+          VISUAL_DIST: dist-googlefonts
+          VISUAL_LABEL: after-googlefonts
+
       - name: Compare
         run: node visual/compare.mjs visual-output
 

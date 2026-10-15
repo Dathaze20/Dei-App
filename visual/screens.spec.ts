@@ -1,4 +1,4 @@
-import { mkdirSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import { test } from '@playwright/test';
 import { SCREENS, showScreen } from '../e2e/tour';
 
@@ -35,6 +35,18 @@ test.beforeEach(async ({ page }) => {
   await page.route(/^https:\/\/placehold\.co\//, route => route.fulfill({ contentType: 'image/png', body: GREY_PIXEL }));
 });
 
+// Computed styles recorded for every element, so a pixel difference can be traced to the CSS
+// property that caused it.
+const PROPS = [
+  'display', 'position', 'top', 'right', 'bottom', 'left', 'width', 'height', 'margin', 'padding',
+  'border-width', 'border-style', 'border-color', 'border-radius', 'color', 'background-color',
+  'background-image', 'font-family', 'font-size', 'font-weight', 'font-style', 'line-height',
+  'letter-spacing', 'text-align', 'text-transform', 'text-decoration-line', 'white-space', 'opacity',
+  'box-shadow', 'transform', 'filter', 'backdrop-filter', 'z-index', 'gap', 'flex-direction',
+  'justify-content', 'align-items', 'overflow', 'outline-style', '-webkit-font-smoothing',
+  'font-feature-settings', 'font-variation-settings', 'direction', 'visibility',
+];
+
 for (const screen of SCREENS) {
   test(screen.name, async ({ page }) => {
     await showScreen(page, screen);
@@ -50,5 +62,21 @@ for (const screen of SCREENS) {
       animations: 'disabled',
       caret: 'hide',
     });
+    const styles = await page.evaluate(props => {
+      const out: Record<string, Record<string, string>> = {};
+      const path = (el: Element): string => {
+        const parent = el.parentElement;
+        if (!parent) return el.tagName.toLowerCase();
+        const index = [...parent.children].indexOf(el);
+        return `${path(parent)}>${el.tagName.toLowerCase()}:${index}`;
+      };
+      for (const el of document.querySelectorAll('body *')) {
+        if (el.closest('svg') && el.tagName.toLowerCase() !== 'svg') continue;
+        const computed = getComputedStyle(el);
+        out[path(el)] = Object.fromEntries(props.map(p => [p, computed.getPropertyValue(p)]));
+      }
+      return out;
+    }, PROPS);
+    writeFileSync(`${OUT}/${screen.name}.styles.json`, JSON.stringify(styles));
   });
 }

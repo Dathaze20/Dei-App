@@ -35,3 +35,4 @@ playwright-report/
 # Visual comparison output (visual/)
 visual-output/
 baseline-dist/
+dist-googlefonts/
