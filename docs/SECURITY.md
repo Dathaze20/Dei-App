@@ -42,3 +42,29 @@ That is a separate, reviewed change; C0 removes nothing that works today.
 
 The unused dependencies `@google/genai` and `html5-qrcode` are still in `package.json`. They are
 never imported, so they are not in the build.
+
+## Dependency audit (C0, October 2026)
+
+`npm audit --omit=dev` (everything the app ships to browsers): **0 vulnerabilities**.
+
+`npm audit` (including development tools): 10 findings, all in tools that run only on a
+developer's machine or in CI. None of their code is in `dist/`; the build outputs only the app's
+own CSS, JavaScript and font files.
+
+C0 added PostCSS 8.4.49, which had four advisories (XSS through `</style>` in its output, file
+reads through attacker-written `sourceMappingURL` comments). It was raised to 8.5.30 (same major
+version, the copy Vite already used). The built files were byte-identical before and after.
+
+Remaining, deliberately deferred:
+
+| Severity | Package (path) | Used for | Why it does not reach the app | Fix |
+| --- | --- | --- | --- | --- |
+| Critical | `vitest` 3.2.7, `tinypool` 1.1.1 (vitest → tinypool) | Unit tests | Needs attacker control of test-runner worker options; tests are our own code | vitest 4.1.11+ or 5 (major). Already on `main` before C0; planned as a separate dev-tooling PR |
+| Moderate | `@vitest/mocker` 3.2.7 (vitest → @vitest/mocker) | Unit tests | Needs attacker-written mock paths | Same vitest upgrade |
+| High | `braces` 3.0.3 via `chokidar`, `micromatch`, `fast-glob`; reported again on `tailwindcss` 3.4.17 | CSS build | Denial of service from deeply nested glob patterns; our patterns are fixed in `tailwind.config.js`. Worst case is a hung build | No fixed `braces` or Tailwind 3 release; Tailwind 4 is a major rewrite and would need a new visual review |
+| Moderate | `postcss-selector-parser` 6.1.4, `postcss-nested` 6.2.0 (tailwindcss → …) | CSS build | CPU exhaustion from crafted selectors; the only CSS input is our own | Same Tailwind 4 upgrade |
+
+Remaining risk: running the test or build tools on untrusted code (for example a pull request
+from someone else) is the only way these could matter, and such code could already run anything
+in that job. CI here has read-only repository permissions and no secrets other than fake canary
+values. Re-run `npm audit` and `npm audit --omit=dev` before each release.
