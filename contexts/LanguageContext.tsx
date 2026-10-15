@@ -106,7 +106,22 @@ const translations = {
     "clearOrder": "Clear Order",
     "clearOrderConfirmationTitle": "Confirm Clear Order",
     "clearOrderConfirmationMessage": "Are you sure you want to remove all items from the current order? This action cannot be undone.",
-    "confirmClear": "Yes, Clear"
+    "confirmClear": "Yes, Clear",
+    "exportTitle": "Backup & Export",
+    "exportDescription": "Save a copy of everything this app has stored on this device: products, suppliers, stock values, the current order, deli name and settings. Exporting only reads your data. Nothing is changed or deleted.",
+    "exportOriginNote": "This export only includes data saved at this web address: {origin}. A copy of the app opened at a different address keeps its own separate data.",
+    "exportButton": "Export My Data",
+    "exportPreparing": "Preparing export...",
+    "exportSummary": "{products} products · {suppliers} suppliers · {lines} order lines · {keys} stored items",
+    "exportVerified": "Verified: the export matches the data stored on this device.",
+    "exportVerifyFailed": "Verification failed:",
+    "exportUnverifiedNote": "Stock quantities and prices are marked as unverified because they may be sample values.",
+    "exportParseWarning": "{count} stored item(s) could not be read as JSON. Their exact text is still included in the export.",
+    "downloadFile": "Download File",
+    "shareFile": "Share File",
+    "exportManualCopy": "If Download, Share and Copy are blocked, select all the text below and copy it manually.",
+    "exportFailed": "Export failed: {message}",
+    "exportDownloadStarted": "Download started: {fileName}"
   },
   es: {
     "deliBrainOfStore": "El cerebro de la tienda.",
@@ -210,7 +225,22 @@ const translations = {
     "clearOrder": "Vaciar Pedido",
     "clearOrderConfirmationTitle": "Confirmar Vaciar Pedido",
     "clearOrderConfirmationMessage": "¿Estás seguro de que quieres eliminar todos los artículos del pedido actual? Esta acción no se puede deshacer.",
-    "confirmClear": "Sí, Vaciar"
+    "confirmClear": "Sí, Vaciar",
+    "exportTitle": "Copia de Seguridad y Exportación",
+    "exportDescription": "Guarda una copia de todo lo que esta app ha almacenado en este dispositivo: productos, proveedores, valores de stock, el pedido actual, el nombre del deli y los ajustes. Exportar solo lee tus datos. No se cambia ni se borra nada.",
+    "exportOriginNote": "Esta exportación solo incluye los datos guardados en esta dirección web: {origin}. Una copia de la app abierta en otra dirección tiene sus propios datos por separado.",
+    "exportButton": "Exportar Mis Datos",
+    "exportPreparing": "Preparando la exportación...",
+    "exportSummary": "{products} productos · {suppliers} proveedores · {lines} líneas de pedido · {keys} elementos guardados",
+    "exportVerified": "Verificado: la exportación coincide con los datos guardados en este dispositivo.",
+    "exportVerifyFailed": "La verificación falló:",
+    "exportUnverifiedNote": "Las cantidades de stock y los precios se marcan como no verificados porque pueden ser valores de ejemplo.",
+    "exportParseWarning": "{count} elemento(s) guardado(s) no se pudieron leer como JSON. Su texto exacto se incluye en la exportación.",
+    "downloadFile": "Descargar Archivo",
+    "shareFile": "Compartir Archivo",
+    "exportManualCopy": "Si Descargar, Compartir y Copiar están bloqueados, selecciona todo el texto de abajo y cópialo manualmente.",
+    "exportFailed": "La exportación falló: {message}",
+    "exportDownloadStarted": "Descarga iniciada: {fileName}"
   },
   ar: {
     "deliBrainOfStore": "عقل المتجر.",
@@ -314,7 +344,22 @@ const translations = {
     "clearOrder": "مسح الطلب",
     "clearOrderConfirmationTitle": "تأكيد مسح الطلب",
     "clearOrderConfirmationMessage": "هل أنت متأكد أنك تريد إزالة جميع العناصر من الطلب الحالي؟ لا يمكن التراجع عن هذا الإجراء.",
-    "confirmClear": "نعم، مسح"
+    "confirmClear": "نعم، مسح",
+    "exportTitle": "النسخ الاحتياطي والتصدير",
+    "exportDescription": "احفظ نسخة من كل ما خزّنه هذا التطبيق على هذا الجهاز: المنتجات والموردين وقيم المخزون والطلب الحالي واسم المحل والإعدادات. التصدير يقرأ بياناتك فقط. لا يتم تغيير أو حذف أي شيء.",
+    "exportOriginNote": "يتضمن هذا التصدير فقط البيانات المحفوظة على عنوان الويب هذا: {origin}. نسخة التطبيق المفتوحة على عنوان مختلف تحتفظ ببياناتها المنفصلة.",
+    "exportButton": "تصدير بياناتي",
+    "exportPreparing": "جارٍ تجهيز التصدير...",
+    "exportSummary": "{products} منتج · {suppliers} مورد · {lines} بند في الطلب · {keys} عنصر محفوظ",
+    "exportVerified": "تم التحقق: التصدير يطابق البيانات المحفوظة على هذا الجهاز.",
+    "exportVerifyFailed": "فشل التحقق:",
+    "exportUnverifiedNote": "كميات المخزون والأسعار معلَّمة كغير مؤكدة لأنها قد تكون قيمًا تجريبية.",
+    "exportParseWarning": "تعذّرت قراءة {count} عنصر محفوظ بصيغة JSON. النص الأصلي لا يزال مضمّنًا في التصدير.",
+    "downloadFile": "تنزيل الملف",
+    "shareFile": "مشاركة الملف",
+    "exportManualCopy": "إذا كان التنزيل والمشاركة والنسخ محظورة، حدّد كل النص أدناه وانسخه يدويًا.",
+    "exportFailed": "فشل التصدير: {message}",
+    "exportDownloadStarted": "بدأ التنزيل: {fileName}"
   }
 };
 

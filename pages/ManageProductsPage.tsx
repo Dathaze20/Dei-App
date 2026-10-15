@@ -6,6 +6,7 @@ import { PlusIcon, TrashIcon, PencilIcon, QrCodeIcon } from '../components/share
 import SupplierChip from '../components/SupplierChip';
 import SupplierForm from '../components/SupplierForm';
 import ShelfTagModal from '../components/ShelfTagModal';
+import DataExportPanel from '../components/DataExportPanel';
 import AnimatedPage from '../components/AnimatedPage';
 import { motion } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
@@ -118,6 +119,8 @@ const ManageProductsPage: React.FC = () => {
             </div>
           </div>
       </motion.div>
+
+      <DataExportPanel />
 
       <motion.div 
         className="bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-4 sm:p-6"
