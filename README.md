@@ -13,6 +13,12 @@ safety snapshot first and can be undone. Data saved at one web address (for exam
 of the app at another address. See [docs/DATA_SAFETY.md](docs/DATA_SAFETY.md) before moving
 between copies.
 
+## Stock counting
+
+Stock is counted in individual units and saved only as verified counts with a date; old
+numbers are shown as "not counted". Boar's Head is a plain weekly item list without stock
+counting or prices. See [docs/STOCK_COUNTING.md](docs/STOCK_COUNTING.md).
+
 ## Development
 
 Requires Node.js 22.

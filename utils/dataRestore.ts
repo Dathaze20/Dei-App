@@ -41,6 +41,7 @@ import {
   verifyExportText,
 } from './dataExport';
 import { validateStoredValue } from './dataValidation';
+import { StockCount, StockCountsDoc, validateStockCountsValue } from './stockCounts';
 import { JournalRecord, SafetyStore, SnapshotPurpose, SnapshotRecord } from './safetyStore';
 import { resumeWrites, suspendWrites } from './storageGuard';
 
@@ -162,7 +163,74 @@ export interface RestoreDiff {
   settings: ValueChange[];
   /** Other app-owned keys (e.g. future inventory_* data) that are added, removed or changed. */
   otherDataKeys: ValueChange[];
+  /**
+   * Verified stock counts (C1). `before`/`after`: products with counts (null = unreadable).
+   * `removed`: products counted on this device that have no count in the backup (for example
+   * any pre-C1 backup). `replacedByOlder`: products whose latest count here would be replaced by
+   * an older or different count from the backup. `retiredLost`: hidden count history of deleted
+   * products that the backup does not have. `lost` is their total; when it is above 0, or when
+   * this device's counts cannot be read (`currentUnreadable`), the restore screen requires a
+   * separate acknowledgement. A backup whose latest count is newer is not a loss.
+   */
+  stockCounts: {
+    before: number | null;
+    after: number | null;
+    lost: number;
+    removed: number;
+    replacedByOlder: number;
+    retiredLost: number;
+    currentUnreadable: boolean;
+    changed: boolean;
+  };
 }
+
+/** The stored counts document, `{}`-like when missing, or null when it cannot be read. */
+const parseCounts = (raw: string | undefined): StockCountsDoc | null => {
+  if (raw === undefined) return { schemaVersion: 1, products: {} };
+  try {
+    const value = JSON.parse(raw);
+    return validateStockCountsValue(value).length > 0 ? null : (value as StockCountsDoc);
+  } catch {
+    return null;
+  }
+};
+
+const countedProducts = (doc: StockCountsDoc) => Object.keys(doc.products).filter(id => doc.products[id].counts.length > 0);
+
+const sameCount = (a: StockCount, b: StockCount) =>
+  a.units === b.units && a.countedAt === b.countedAt && a.source === b.source && a.unitsPerCaseAtCount === b.unitsPerCaseAtCount;
+
+const diffStockCounts = (beforeText: string | undefined, afterText: string | undefined): RestoreDiff['stockCounts'] => {
+  const before = parseCounts(beforeText);
+  const after = parseCounts(afterText);
+  const changed = (beforeText ?? null) !== (afterText ?? null);
+  let removed = 0;
+  let replacedByOlder = 0;
+  let retiredLost = 0;
+  if (before && changed) {
+    for (const id of countedProducts(before)) {
+      const current = before.products[id].counts[0];
+      const incoming = after?.products[id]?.counts[0];
+      if (!incoming) removed++;
+      else if (sameCount(current, incoming)) continue;
+      // Only a strictly newer count from the backup is not a loss; an older one, or a different
+      // count at the same time, would replace this device's latest verified count.
+      else if (!(Date.parse(incoming.countedAt) > Date.parse(current.countedAt))) replacedByOlder++;
+    }
+    const kept = new Set((after?.retired ?? []).map(entry => `${entry.productId}|${entry.retiredAt}`));
+    retiredLost = (before.retired ?? []).filter(entry => !kept.has(`${entry.productId}|${entry.retiredAt}`)).length;
+  }
+  return {
+    before: before ? countedProducts(before).length : null,
+    after: after ? countedProducts(after).length : null,
+    lost: removed + replacedByOlder + retiredLost,
+    removed,
+    replacedByOlder,
+    retiredLost,
+    currentUnreadable: before === null && changed,
+    changed,
+  };
+};
 
 type AnyRecord = Record<string, unknown> & { id?: unknown };
 
@@ -216,10 +284,15 @@ const countOrderLines = (text: string | undefined): number | null => {
 };
 
 const SETTINGS_KEYS: string[] = [KNOWN_STORAGE_KEYS.deliName.key, KNOWN_STORAGE_KEYS.theme.key, KNOWN_STORAGE_KEYS.language.key];
-const LIST_KEYS: string[] = [KNOWN_STORAGE_KEYS.products.key, KNOWN_STORAGE_KEYS.suppliers.key, KNOWN_STORAGE_KEYS.currentOrder.key];
+const LIST_KEYS: string[] = [
+  KNOWN_STORAGE_KEYS.products.key,
+  KNOWN_STORAGE_KEYS.suppliers.key,
+  KNOWN_STORAGE_KEYS.currentOrder.key,
+  KNOWN_STORAGE_KEYS.stockCounts.key,
+];
 
 export const diffRestore = (current: Record<string, string>, target: Record<string, string>): RestoreDiff => {
-  const { products, suppliers, currentOrder } = KNOWN_STORAGE_KEYS;
+  const { products, suppliers, currentOrder, stockCounts } = KNOWN_STORAGE_KEYS;
   const change = (key: string): ValueChange => ({ key, before: current[key] ?? null, after: target[key] ?? null });
   const differs = (key: string) => (current[key] ?? null) !== (target[key] ?? null);
   const others = Array.from(new Set([...Object.keys(current), ...Object.keys(target)]))
@@ -231,6 +304,7 @@ export const diffRestore = (current: Record<string, string>, target: Record<stri
     orderLines: { before: countOrderLines(current[currentOrder.key]), after: countOrderLines(target[currentOrder.key]) },
     settings: SETTINGS_KEYS.filter(differs).map(change),
     otherDataKeys: others.filter(differs).map(change),
+    stockCounts: diffStockCounts(current[stockCounts.key], target[stockCounts.key]),
   };
 };
 

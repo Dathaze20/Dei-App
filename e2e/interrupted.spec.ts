@@ -74,7 +74,9 @@ test('rollback impossible: the app pauses on a recovery screen and changes nothi
 
   // Retrying cannot succeed without the snapshot, and still changes nothing.
   await visible(page).button('Try Putting the Data Back Again').click();
-  await expect(page.getByText(/could not be read or verified/)).toBeVisible();
+  // The retry's result appears below the original explanation, which says the same thing.
+  // (Asserting a single match raced with that second message appearing.)
+  await expect(page.getByText(/could not be read or verified/)).toHaveCount(2);
   expect(await dumpStorage(page)).toEqual(before);
 });
 

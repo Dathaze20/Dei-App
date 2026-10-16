@@ -3,7 +3,7 @@
 // Runs the real InventoryProvider (startup load + automatic save effects) against corrupted and
 // valid browser storage. Before this PR, unreadable data was replaced by sample data on startup.
 
-import { act, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -28,7 +28,11 @@ beforeEach(() => {
   localStorage.clear();
   resetGuardForTests();
 });
-afterEach(() => localStorage.clear());
+afterEach(() => {
+  // Unmount, so a provider from an earlier test can't re-render and take over `api`.
+  cleanup();
+  localStorage.clear();
+});
 
 describe('InventoryProvider with the storage guard', () => {
   it('valid saved data loads unchanged and is not rewritten', () => {
@@ -67,7 +71,7 @@ describe('InventoryProvider with the storage guard', () => {
     act(() => {
       api.updateDeliName('Changed after load');
       api.addToOrder(api.products[0].id, 1);
-      api.updateProductStock(api.products[0].id, 4);
+      api.saveStockCount(api.products.find(p => p.supplierId === 'sup6')!.id, 4, 'classic');
     });
     expect(localStorage.getItem(key)).toBe(damaged);
     // Keys that were readable keep saving normally.

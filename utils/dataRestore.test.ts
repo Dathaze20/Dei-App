@@ -610,3 +610,154 @@ describe('stale preview: data changed after the comparison was reviewed', () => 
     expect(readDataKeys(storage)).toEqual(reviewed);
   });
 });
+
+describe('C1 verified stock counts in backups', () => {
+  const COUNTS = JSON.stringify({
+    schemaVersion: 1,
+    products: {
+      [realProducts[100].id]: { counts: [{ units: 18, countedAt: '2026-10-15T09:00:00.000Z', source: 'classic', unitsPerCaseAtCount: 24 }] },
+      [realProducts[101].id]: { counts: [{ units: 0, countedAt: '2026-10-15T09:01:00.000Z', source: 'classic', unitsPerCaseAtCount: 24 }] },
+    },
+  });
+  const withCounts = () => ({ ...REAL, inventory_stockCounts: COUNTS });
+
+  it('a pre-C1 backup reports exactly how many counted products would lose their counts', () => {
+    const diff = diffRestore(withCounts(), REAL);
+    expect(diff.stockCounts).toEqual({ before: 2, after: 0, lost: 2, removed: 2, replacedByOlder: 0, retiredLost: 0, currentUnreadable: false, changed: true });
+    // The counts are not dumped as raw text among other keys.
+    expect(diff.otherDataKeys).toEqual([]);
+  });
+
+  it('a backup with the same counts loses nothing', () => {
+    expect(diffRestore(withCounts(), withCounts()).stockCounts).toEqual({ before: 2, after: 2, lost: 0, removed: 0, replacedByOlder: 0, retiredLost: 0, currentUnreadable: false, changed: false });
+  });
+
+  it('a device without counts loses nothing from any backup', () => {
+    expect(diffRestore(REAL, REAL).stockCounts.lost).toBe(0);
+    expect(diffRestore(REAL, withCounts()).stockCounts).toEqual({ before: 0, after: 2, lost: 0, removed: 0, replacedByOlder: 0, retiredLost: 0, currentUnreadable: false, changed: true });
+  });
+
+  it('export → restore keeps counts byte-for-byte, and the backup verifies', async () => {
+    const source = setup(withCounts(), false);
+    const exported = await createExport(source.storage, context());
+    expect(exported.raw.inventory_stockCounts).toBe(COUNTS);
+    expect(exported.data.stockCounts).toEqual(JSON.parse(COUNTS));
+    expect(exported.summary.verifiedCountProductCount).toBe(2);
+    const analysis = await analyzeBackup(serializeExport(exported));
+    expect(analysis.verification.status).toBe('verified');
+    expect(analysis.canRestore).toBe(true);
+
+    const target = setup({}, false);
+    expect((await target.engine.restore(analysis.target)).status).toBe('restored');
+    expect(readDataKeys(target.storage).inventory_stockCounts).toBe(COUNTS);
+  });
+
+  it('restoring a pre-C1 backup removes the counts, and Undo brings them back exactly', async () => {
+    const { storage, engine } = setup(withCounts(), false);
+    expect((await engine.restore(REAL)).status).toBe('restored');
+    expect(readDataKeys(storage).inventory_stockCounts).toBeUndefined();
+    resetGuardForTests();
+    expect((await engine.undoLastRestore()).status).toBe('restored');
+    expect(readDataKeys(storage).inventory_stockCounts).toBe(COUNTS);
+  });
+
+  it('a backup with corrupted counts cannot be restored', async () => {
+    const source = setup({ ...REAL, inventory_stockCounts: '{"schemaVersion":1,"products":{"x":{"counts":[{"units":-3}]}}}' }, false);
+    const analysis = await analyzeBackup(serializeExport(await createExport(source.storage, context())));
+    expect(analysis.canRestore).toBe(false);
+  });
+
+  it('crash in the middle of a restore: the next start puts the counts back exactly', async () => {
+    const s = setup(withCounts(), false);
+    const before = s.dump();
+    class Crash extends Error {}
+    let crashDump: Record<string, string> | undefined;
+    s.faults.beforeWrite = key => {
+      if (key === 'inventory_products' && !crashDump) {
+        crashDump = s.dump();
+        throw new Crash('power cut');
+      }
+    };
+    const putJournal = s.store.putJournal;
+    s.store.putJournal = async record => {
+      if (crashDump) throw new Error('process is dead');
+      return putJournal(record);
+    };
+    const clearJournal = s.store.clearJournal;
+    s.store.clearJournal = async () => {
+      if (crashDump) throw new Error('process is dead');
+      return clearJournal();
+    };
+    await s.engine.restore(REAL).catch(() => undefined);
+    resetGuardForTests();
+    const restarted = makeStorage(crashDump!);
+    s.store.putJournal = putJournal;
+    s.store.clearJournal = clearJournal;
+    const engine = createRestoreEngine({ storage: restarted.storage, store: s.store, exportContext: context });
+    expect((await engine.recover()).status).toBe('rolled-back');
+    expect(restarted.dump()).toEqual(before);
+  });
+
+  it('every real PR #1 backup still restores (none has counts, so nothing is lost on a new device)', async () => {
+    const files = ['pr1-b291176-arizona-demo.json', 'pr1-c3d8d63-arizona-demo.json'];
+    for (const file of files) {
+      const analysis = await analyzeBackup(readFileSync(`fixtures/exports/${file}`, 'utf8'));
+      expect(analysis.canRestore).toBe(true);
+      const { engine, storage } = setup({}, false);
+      expect((await engine.restore(analysis.target)).status).toBe('restored');
+      expect(readDataKeys(storage)).toEqual(analysis.target);
+    }
+  });
+});
+
+describe('C1 restore preview: same-product count changes and count history', () => {
+  const id = realProducts[100].id;
+  const count = (units: number, countedAt: string) => ({ units, countedAt, source: 'classic', unitsPerCaseAtCount: 24 });
+  const doc = (counts: ReturnType<typeof count>[], retired: unknown[] = []) =>
+    JSON.stringify({ schemaVersion: 1, products: { [id]: { counts } }, ...(retired.length ? { retired } : {}) });
+  const diffCounts = (device: string, backup: string | undefined) =>
+    diffRestore({ ...REAL, inventory_stockCounts: device }, backup === undefined ? REAL : { ...REAL, inventory_stockCounts: backup }).stockCounts;
+  const newer = count(25, '2026-10-16T09:00:00.000Z');
+  const older = count(18, '2026-10-15T09:00:00.000Z');
+
+  it('a backup with an OLDER count for the same product is a loss that needs acknowledgement', () => {
+    expect(diffCounts(doc([newer, older]), doc([older]))).toMatchObject({ lost: 1, removed: 0, replacedByOlder: 1, before: 1, after: 1 });
+  });
+
+  it('a different count recorded at the same time also counts as a replacement', () => {
+    expect(diffCounts(doc([newer]), doc([{ ...newer, units: 99 }]))).toMatchObject({ lost: 1, replacedByOlder: 1 });
+  });
+
+  it('a backup with a NEWER count for the same product is not a loss', () => {
+    expect(diffCounts(doc([older]), doc([newer, older]))).toMatchObject({ lost: 0, replacedByOlder: 0, changed: true });
+  });
+
+  it('the same latest count with a different earlier history is not a loss', () => {
+    expect(diffCounts(doc([newer, older]), doc([newer]))).toMatchObject({ lost: 0 });
+  });
+
+  it('losing the hidden count history of a deleted product is a loss', () => {
+    const retired = [{ productId: 'prod_deleted', retiredAt: '2026-10-16T10:00:00.000Z', counts: [older] }];
+    expect(diffCounts(doc([newer], retired), doc([newer]))).toMatchObject({ lost: 1, retiredLost: 1 });
+    expect(diffCounts(doc([newer], retired), doc([newer], retired))).toMatchObject({ lost: 0 });
+  });
+
+  it('unreadable counts on this device cannot be compared, so the restore must be acknowledged', () => {
+    expect(diffCounts('{"schemaVersion":1,"products":{"x":{"counts":[{"units":"many"}]}}}', doc([older]))).toMatchObject({
+      currentUnreadable: true,
+      before: null,
+      lost: 0,
+    });
+  });
+
+  it('an explicitly acknowledged restore of older counts still restores them exactly, and Undo returns the newer ones', async () => {
+    const device = doc([newer, older]);
+    const backup = doc([older]);
+    const { storage, engine } = setup({ ...REAL, inventory_stockCounts: device }, false);
+    expect((await engine.restore({ ...REAL, inventory_stockCounts: backup })).status).toBe('restored');
+    expect(readDataKeys(storage).inventory_stockCounts).toBe(backup);
+    resetGuardForTests();
+    expect((await engine.undoLastRestore()).status).toBe('restored');
+    expect(readDataKeys(storage).inventory_stockCounts).toBe(device);
+  });
+});

@@ -165,6 +165,31 @@ export const guardedSetItem = (key: string, value: string, storage: StorageLike 
   }
 };
 
+/**
+ * Checks, without writing, that a key still holds what this page last read or wrote. If another
+ * tab or window changed it since, the key is blocked exactly as a refused save would block it,
+ * and false is returned. Used before an action that depends on this page's copy being current.
+ */
+export const confirmUnchanged = (key: string, storage: StorageLike | null = defaultStorage()): boolean => {
+  if (blocked.has(key) || !storage) return false;
+  try {
+    const current = storage.getItem(key);
+    if (lastKnown.has(key) && current !== lastKnown.get(key)) {
+      blocked.set(key, {
+        key,
+        status: 'changed-elsewhere',
+        problems: ['It was changed in another tab or window after this page loaded.'],
+        fallbackText: lastKnown.get(key) ?? '',
+      });
+      emit();
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /** Test helper: forget all blocked keys and suspension. Not used by the app. */
 export const resetGuardForTests = (): void => {
   blocked.clear();

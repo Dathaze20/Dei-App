@@ -35,7 +35,7 @@ const listVariants = {
 
 
 const HomePage: React.FC = () => {
-  const { products, suppliers, currentOrder, addToOrder, getSupplierById, getProductById, updateProductStock, addSupplier } = useInventory();
+  const { products, suppliers, currentOrder, addToOrder, getSupplierById, getProductById, addSupplier } = useInventory();
   const { t } = useTranslation();
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -298,7 +298,6 @@ const HomePage: React.FC = () => {
           isOpen={!!selectedProduct}
           onClose={handleCloseModal}
           onAddToOrder={addToOrder}
-          onUpdateStock={updateProductStock}
         />
       )}
       <Modal isOpen={isSupplierModalOpen} onClose={() => setSupplierModalOpen(false)} title={t('newSupplier')}>

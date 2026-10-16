@@ -8,6 +8,7 @@ import SupplierForm from '../components/SupplierForm';
 import ShelfTagModal from '../components/ShelfTagModal';
 import DataExportPanel from '../components/DataExportPanel';
 import RestorePanel from '../components/RestorePanel';
+import StockLabel from '../components/StockLabel';
 import AnimatedPage from '../components/AnimatedPage';
 import { motion } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
@@ -33,13 +34,24 @@ const itemVariants = {
 
 
 const ManageProductsPage: React.FC = () => {
-  const { products, suppliers, addProduct, updateProduct, deleteProduct, getSupplierById, addSupplier, deliName, updateDeliName } = useInventory();
+  const { products, suppliers, addProduct, updateProduct, deleteProduct, getSupplierById, addSupplier, deliName, updateDeliName, getWorkflow } = useInventory();
   const { t } = useTranslation();
   const [isModalOpen, setModalOpen] = useState(false);
   const [isSupplierModalOpen, setSupplierModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [tagProduct, setTagProduct] = useState<Product | null>(null);
   const [localDeliName, setLocalDeliName] = useState(deliName);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDelete = (product: Product) => {
+    const result = deleteProduct(product.id);
+    if ('reason' in result) {
+      const reason = result.reason === 'counts-unavailable' ? t('deleteBlockedUnavailable') : t('deleteBlockedWrite');
+      setDeleteError(t('deleteBlocked', { name: [product.name, product.flavor].filter(Boolean).join(' '), reason }));
+    } else {
+      setDeleteError(null);
+    }
+  };
 
   useEffect(() => {
     setLocalDeliName(deliName);
@@ -141,6 +153,12 @@ const ManageProductsPage: React.FC = () => {
           </div>
         </div>
 
+        {deleteError && (
+          <p role="alert" data-testid="delete-error" className="mb-4 p-3 rounded-lg bg-red-500/10 text-red-700 dark:text-red-300 ring-1 ring-red-500/30 text-sm font-semibold">
+            {deleteError}
+          </p>
+        )}
+
         {/* Mobile Card View */}
         <motion.div className="md:hidden space-y-4" variants={listVariants} initial="hidden" animate="visible">
           {sortedProducts.map(product => {
@@ -162,7 +180,7 @@ const ManageProductsPage: React.FC = () => {
                 <div className="px-4 pb-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-slate-500 dark:text-slate-400">Stock:</span>
-                    <span>{product.currentStockUnits} / {product.reorderThresholdUnits} units</span>
+                    <span>{getWorkflow(product.supplierId).countStock ? <StockLabel product={product} /> : '—'}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-slate-500 dark:text-slate-400">UPC:</span>
@@ -172,7 +190,7 @@ const ManageProductsPage: React.FC = () => {
                 <div className="bg-slate-100/70 dark:bg-slate-900/50 px-4 py-2 flex justify-end gap-2">
                     <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenTagModal(product)} className="p-2 text-green-600 hover:text-green-800 bg-green-100/0 hover:bg-green-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><QrCodeIcon className="h-5 w-5" /></motion.button>
                     <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenModal(product)} className="p-2 text-blue-600 hover:text-blue-800 bg-blue-100/0 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><PencilIcon className="h-5 w-5" /></motion.button>
-                    <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => deleteProduct(product.id)} className="p-2 text-red-600 hover:text-red-800 bg-red-100/0 hover:bg-red-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
+                    <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleDelete(product)} className="p-2 text-red-600 hover:text-red-800 bg-red-100/0 hover:bg-red-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
                 </div>
               </motion.div>
             );
@@ -206,13 +224,13 @@ const ManageProductsPage: React.FC = () => {
                               </div>
                           </td>
                           <td className="p-4">{supplier ? <SupplierChip supplier={supplier} /> : 'N/A'}</td>
-                          <td className="p-4 font-medium">{product.currentStockUnits} / <span className="text-brand-muted">{product.reorderThresholdUnits}</span></td>
+                          <td className="p-4 font-medium">{getWorkflow(product.supplierId).countStock ? <StockLabel product={product} /> : '—'}</td>
                           <td className="p-4 font-mono text-xs text-slate-500">{product.upc || '-'}</td>
                           <td className="p-4">
                             <div className="flex gap-2">
                               <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenTagModal(product)} className="p-2.5 text-green-600 hover:text-green-800 hover:bg-green-100 dark:hover:bg-green-100/10 rounded-full transition-colors"><QrCodeIcon className="h-5 w-5" /></motion.button>
                               <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenModal(product)} className="p-2.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:hover:bg-blue-100/10 rounded-full transition-colors"><PencilIcon className="h-5 w-5" /></motion.button>
-                              <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => deleteProduct(product.id)} className="p-2.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:hover:bg-red-100/10 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
+                              <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleDelete(product)} className="p-2.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:hover:bg-red-100/10 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
                             </div>
                           </td>
                       </motion.tr>
