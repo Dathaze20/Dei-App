@@ -34,6 +34,9 @@ npm run test:e2e    # browser tests at Galaxy A17 size (needs `npm run build` fi
 npm run check:secrets  # scan dist/ for API keys (also runs at the end of npm run build)
 ```
 
+To try the app on a phone, see [docs/GITHUB_PAGES.md](docs/GITHUB_PAGES.md): a manually triggered
+GitHub Pages workflow publishes `main` to https://dathaze20.github.io/Dei-App/.
+
 Styles are built with Tailwind CSS (`tailwind.config.js`, `index.css`) and the Inter font is
 bundled, so the app loads nothing from CDNs. See [docs/OFFLINE.md](docs/OFFLINE.md) for what still
 uses the internet and [docs/SECURITY.md](docs/SECURITY.md) for why API keys must never go in the
