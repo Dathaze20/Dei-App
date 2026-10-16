@@ -114,6 +114,72 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:4190/Dei-App/ > /dev/null && break; sleep 1; done
           node scripts/smoke-pages.mjs http://localhost:4190/Dei-App/
 
+  android:
+    name: Android build check (unsigned, nothing published)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate the Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Android identity and version consistency
+        run: npm run check:android
+
+      - name: Build the web app and scan it for secrets
+        run: npm run build
+        env:
+          GEMINI_API_KEY: ci-canary-not-a-real-key-7f3a9c
+          API_KEY: ci-canary-not-a-real-key-2b8e41
+          SECRET_SCAN_CANARY: ci-canary-not-a-real-key-d05c6e
+
+      - name: Copy the web app into the Android project
+        run: npx cap sync android
+
+      # No signing key exists in CI: this produces an unsigned APK that cannot be installed.
+      - name: Gradle build and Android lint
+        working-directory: android
+        run: ./gradlew --no-daemon assembleRelease lintRelease
+
+      - name: Check the built APK
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release-unsigned.apk
+          AAPT2="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/aapt2"
+          "$AAPT2" dump badging "$APK" > badging.txt
+          head -3 badging.txt
+          node scripts/check-android-identity.mjs "v$(node -p "require('./package.json').version")" badging.txt
+          # The app, its styles and fonts are inside the APK; nothing is loaded from a web address.
+          unzip -l "$APK" | grep -q 'assets/public/index.html'
+          unzip -l "$APK" | grep -q 'assets/public/assets/.*\.css'
+          unzip -l "$APK" | grep -q 'assets/public/assets/.*\.woff2'
+          unzip -p "$APK" assets/capacitor.config.json | node -e "const c=JSON.parse(require('fs').readFileSync(0,'utf8')); if (c.server?.url) { console.error('server.url is set'); process.exit(1) } console.log('Bundled, origin', c.server.androidScheme + '://' + c.server.hostname)"
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-lint-report
+          path: android/app/build/reports/lint-results-release.html
+          if-no-files-found: ignore
+          retention-days: 7
+
   visual:
     name: Visual comparison with main (Galaxy A17 viewport)
     # Photographs the existing screens built from main and from this branch and reports how many
