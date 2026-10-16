@@ -7,10 +7,11 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc --noEmit && vite build",
-    "verify": "npm run typecheck && npm run test && vite build",
+    "build": "tsc --noEmit && vite build && npm run check:secrets",
+    "verify": "npm run typecheck && npm run test && vite build && npm run check:secrets",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check:secrets": "node scripts/check-bundle-secrets.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.9.0",
@@ -22,14 +23,20 @@
     "react-router-dom": "^7.6.3"
   },
   "devDependencies": {
+    "@fontsource/inter": "^5.1.1",
     "@playwright/test": "^1.56.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.20",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^26.1.0",
+    "pixelmatch": "^6.0.0",
+    "pngjs": "^7.0.0",
+    "postcss": "^8.5.30",
+    "tailwindcss": "^3.4.17",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vitest": "^3.2.7"

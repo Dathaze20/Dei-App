@@ -33,8 +33,15 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Build
-        run: npx vite build
+      # The build ends with a scan of dist/ for credentials (scripts/check-bundle-secrets.mjs).
+      # Fake "secret" values are set here on purpose: if any build setting ever copied these
+      # variables into the browser bundle, the scan would find them and fail the build.
+      - name: Build and scan the bundle for secrets
+        run: npm run build
+        env:
+          GEMINI_API_KEY: ci-canary-not-a-real-key-7f3a9c
+          API_KEY: ci-canary-not-a-real-key-2b8e41
+          SECRET_SCAN_CANARY: ci-canary-not-a-real-key-d05c6e
 
   e2e:
     name: Browser tests (Galaxy A17 viewport)
@@ -70,3 +77,70 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+
+  visual:
+    name: Visual comparison with main (Galaxy A17 viewport)
+    # Photographs the existing screens built from main and from this branch and reports how many
+    # pixels differ. It reports only; a person reviews the side-by-side images in the artifact.
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Build this branch (after)
+        run: npm run build
+
+      - name: Build main (before)
+        run: |
+          git worktree add ../baseline origin/main
+          cd ../baseline
+          npm ci
+          npx vite build --outDir "$GITHUB_WORKSPACE/baseline-dist" --emptyOutDir
+
+      - name: Screenshots of main
+        run: npx playwright test -c playwright.visual.config.ts
+        env:
+          VISUAL_DIST: baseline-dist
+          VISUAL_LABEL: before
+
+      - name: Screenshots of this branch
+        run: npx playwright test -c playwright.visual.config.ts
+        env:
+          VISUAL_DIST: dist
+          VISUAL_LABEL: after
+
+      # This branch again, but with Inter from Google Fonts as main loads it, so the report can
+      # tell font-file differences apart from CSS differences.
+      - name: Screenshots of this branch with Google Fonts
+        run: |
+          node visual/googlefonts-variant.mjs dist dist-googlefonts
+          npx playwright test -c playwright.visual.config.ts
+        env:
+          VISUAL_DIST: dist-googlefonts
+          VISUAL_LABEL: after-googlefonts
+
+      - name: Compare
+        run: node visual/compare.mjs visual-output
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-comparison
+          path: visual-output/
+          retention-days: 30

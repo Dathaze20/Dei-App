@@ -26,3 +26,13 @@ dist-ssr
 # Playwright
 test-results/
 playwright-report/
+
+# Local environment files can hold API keys. Never commit them.
+.env
+.env.*
+!.env.example
+
+# Visual comparison output (visual/)
+visual-output/
+baseline-dist/
+dist-googlefonts/

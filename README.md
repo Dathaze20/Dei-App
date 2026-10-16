@@ -25,7 +25,13 @@ npm test            # unit tests (Vitest)
 npm run build       # type-check, then production build into dist/
 npm run verify      # type-check, unit tests, build
 npm run test:e2e    # browser tests at Galaxy A17 size (needs `npm run build` first)
+npm run check:secrets  # scan dist/ for API keys (also runs at the end of npm run build)
 ```
+
+Styles are built with Tailwind CSS (`tailwind.config.js`, `index.css`) and the Inter font is
+bundled, so the app loads nothing from CDNs. See [docs/OFFLINE.md](docs/OFFLINE.md) for what still
+uses the internet and [docs/SECURITY.md](docs/SECURITY.md) for why API keys must never go in the
+browser build.
 
 `npm run build` runs the type check first, so a build can no longer succeed while hiding
 TypeScript errors. GitHub Actions (`.github/workflows/ci.yml`) runs the same checks on every push

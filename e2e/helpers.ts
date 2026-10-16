@@ -5,12 +5,10 @@ export const fixture = (name: string) => readFileSync(`fixtures/exports/${name}`
 /** The real 141-product catalog + Arizona order, exported by a browser in PR #1. */
 export const REAL: Record<string, string> = JSON.parse(fixture('pr1-b291176-arizona-demo.json')).raw;
 
-/** Page errors other than the Tailwind CDN being unreachable (it is blocked in some sandboxes). */
+/** Uncaught page errors. (Styles are bundled since C0, so there is no CDN error to ignore.) */
 export const collectErrors = (page: Page) => {
   const errors: string[] = [];
-  page.on('pageerror', error => {
-    if (!/tailwind is not defined/.test(error.message)) errors.push(error.message);
-  });
+  page.on('pageerror', error => errors.push(error.message));
   return errors;
 };
 
