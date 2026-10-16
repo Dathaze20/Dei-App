@@ -4,6 +4,7 @@ import { audioManager } from '../utils/audioManager';
 import { confirmUnchanged, getGuardState, guardedSetItem, isKeyBlocked, loadGuarded, subscribeGuard } from '../utils/storageGuard';
 import { OrderUnit, SupplierWorkflow, lineUnit, newLineUnit, resolveSupplierWorkflow } from '../utils/supplierWorkflow';
 import {
+  CountSource,
   STOCK_COUNTS_KEY,
   StockCount,
   StockCountsDoc,
@@ -257,7 +258,7 @@ export interface InventoryContextType {
    * The only way stock is recorded (Classic View now, The Counter later). Reports success only
    * after the count is saved in storage. Never writes `inventory_products`.
    */
-  saveStockCount: (productId: string, units: number, source: 'classic' | 'confirmed-legacy') => SaveCountResult;
+  saveStockCount: (productId: string, units: number, source: CountSource) => SaveCountResult;
 }
 
 export type DeleteProductResult = { ok: true } | { ok: false; reason: 'counts-unavailable' | 'write-failed' };
@@ -329,7 +330,7 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const saveStockCount = useCallback(
-    (productId: string, units: number, source: 'classic' | 'confirmed-legacy'): SaveCountResult => {
+    (productId: string, units: number, source: CountSource): SaveCountResult => {
       const product = products.find(p => p.id === productId);
       if (!product) return { ok: false, reason: 'missing-product' };
       if (!resolveSupplierWorkflow(product.supplierId).countStock) return { ok: false, reason: 'not-tracked' };

@@ -129,6 +129,11 @@ describe('validation of inventory_stockCounts', () => {
     expect(validateStockCountsValue(extra)).toEqual([]);
   });
 
+  it("accepts counts saved by The Counter (source 'counter'), so they back up and restore", () => {
+    const counter = withCount(emptyStockCounts(), arizona.id, { ...count(7, '2026-10-16T08:00:00.000Z'), source: 'counter' });
+    expect(validateStoredValue('inventory_stockCounts', JSON.stringify(counter)).ok).toBe(true);
+  });
+
   it.each([
     ['not JSON', '{"schemaVersion":1,'],
     ['wrong version', JSON.stringify({ schemaVersion: 2, products: {} })],
