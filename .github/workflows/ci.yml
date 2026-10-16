@@ -78,6 +78,42 @@ jobs:
             test-results/
           retention-days: 14
 
+  pages-build:
+    name: GitHub Pages build check (no deployment)
+    # Builds the site exactly as the manual Pages workflow would (base /Dei-App/) and opens it in
+    # Chromium with the internet blocked. It never uploads or publishes anything.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Build for GitHub Pages
+        run: npx vite build --base=/Dei-App/
+
+      - name: Scan the bundle for secrets
+        run: npm run check:secrets
+
+      - name: Check every asset is served under /Dei-App/
+        run: node scripts/check-pages-build.mjs dist /Dei-App/
+
+      - name: Open it under /Dei-App/ with the internet blocked
+        run: |
+          npx vite preview --base=/Dei-App/ --port 4190 --strictPort &
+          for i in $(seq 1 30); do curl -sf http://localhost:4190/Dei-App/ > /dev/null && break; sleep 1; done
+          node scripts/smoke-pages.mjs http://localhost:4190/Dei-App/
+
   visual:
     name: Visual comparison with main (Galaxy A17 viewport)
     # Photographs the existing screens built from main and from this branch and reports how many
