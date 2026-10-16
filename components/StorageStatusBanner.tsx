@@ -6,7 +6,8 @@ import { getGuardState, subscribeGuard } from '../utils/storageGuard';
 import { readDataKeys } from '../utils/dataRestore';
 import { StartupNotice, getRestoreEngine } from '../utils/safetyBootstrap';
 
-const KEY_LABELS: Record<string, 'products' | 'suppliers' | 'order' | 'deliName'> = {
+const KEY_LABELS: Record<string, 'products' | 'suppliers' | 'order' | 'deliName' | 'stockCountsLabel'> = {
+  inventory_stockCounts: 'stockCountsLabel',
   inventory_products: 'products',
   inventory_suppliers: 'suppliers',
   inventory_currentOrder: 'order',

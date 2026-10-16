@@ -9,6 +9,7 @@
 // "repaired" or partially loaded: the whole key is treated as unreadable and left untouched.
 
 import { KNOWN_STORAGE_KEYS } from './dataExport';
+import { validateStockCountsValue } from './stockCounts';
 
 export interface ValidationResult {
   ok: boolean;
@@ -50,6 +51,8 @@ const SUPPLIER_RULES: Record<string, Rule> = {
 const ORDER_ITEM_RULES: Record<string, Rule> = {
   productId: isNonEmptyString,
   quantity: isFiniteNumber,
+  // Added in C1. Missing on all lines saved before C1 (they mean cases).
+  unit: value => value === undefined || value === 'item' || value === 'case',
 };
 
 const checkRecords = (label: string, value: unknown, rules: Record<string, Rule>): string[] => {
@@ -91,7 +94,10 @@ export const validateOrder = (value: unknown): ValidationResult => {
   return result(problems);
 };
 
+export const validateStockCounts = (value: unknown): ValidationResult => result(validateStockCountsValue(value));
+
 const JSON_VALIDATORS: Record<string, (value: unknown) => ValidationResult> = {
+  [KNOWN_STORAGE_KEYS.stockCounts.key]: validateStockCounts,
   [KNOWN_STORAGE_KEYS.products.key]: validateProducts,
   [KNOWN_STORAGE_KEYS.suppliers.key]: validateSuppliers,
   [KNOWN_STORAGE_KEYS.currentOrder.key]: validateOrder,

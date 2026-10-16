@@ -121,7 +121,16 @@ describe('buildExport', () => {
 
   it('summarizes counts, including cases in the order draft', () => {
     const { summary } = buildExport(appStorage().storage, context);
-    expect(summary).toEqual({ includedKeyCount: 6, excludedKeyCount: 0, productCount: 2, supplierCount: 1, orderLineCount: 2, orderCaseCount: 2 });
+    expect(summary).toEqual({
+      includedKeyCount: 6,
+      excludedKeyCount: 0,
+      productCount: 2,
+      supplierCount: 1,
+      orderLineCount: 2,
+      orderCaseCount: 2,
+      orderItemCount: 0,
+      verifiedCountProductCount: 0,
+    });
   });
 
   it('marks stock and prices as unverified', () => {

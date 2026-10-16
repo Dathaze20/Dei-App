@@ -610,3 +610,102 @@ describe('stale preview: data changed after the comparison was reviewed', () => 
     expect(readDataKeys(storage)).toEqual(reviewed);
   });
 });
+
+describe('C1 verified stock counts in backups', () => {
+  const COUNTS = JSON.stringify({
+    schemaVersion: 1,
+    products: {
+      [realProducts[100].id]: { counts: [{ units: 18, countedAt: '2026-10-15T09:00:00.000Z', source: 'classic', unitsPerCaseAtCount: 24 }] },
+      [realProducts[101].id]: { counts: [{ units: 0, countedAt: '2026-10-15T09:01:00.000Z', source: 'classic', unitsPerCaseAtCount: 24 }] },
+    },
+  });
+  const withCounts = () => ({ ...REAL, inventory_stockCounts: COUNTS });
+
+  it('a pre-C1 backup reports exactly how many counted products would lose their counts', () => {
+    const diff = diffRestore(withCounts(), REAL);
+    expect(diff.stockCounts).toEqual({ before: 2, after: 0, lost: 2, changed: true });
+    // The counts are not dumped as raw text among other keys.
+    expect(diff.otherDataKeys).toEqual([]);
+  });
+
+  it('a backup with the same counts loses nothing', () => {
+    expect(diffRestore(withCounts(), withCounts()).stockCounts).toEqual({ before: 2, after: 2, lost: 0, changed: false });
+  });
+
+  it('a device without counts loses nothing from any backup', () => {
+    expect(diffRestore(REAL, REAL).stockCounts.lost).toBe(0);
+    expect(diffRestore(REAL, withCounts()).stockCounts).toEqual({ before: 0, after: 2, lost: 0, changed: true });
+  });
+
+  it('export → restore keeps counts byte-for-byte, and the backup verifies', async () => {
+    const source = setup(withCounts(), false);
+    const exported = await createExport(source.storage, context());
+    expect(exported.raw.inventory_stockCounts).toBe(COUNTS);
+    expect(exported.data.stockCounts).toEqual(JSON.parse(COUNTS));
+    expect(exported.summary.verifiedCountProductCount).toBe(2);
+    const analysis = await analyzeBackup(serializeExport(exported));
+    expect(analysis.verification.status).toBe('verified');
+    expect(analysis.canRestore).toBe(true);
+
+    const target = setup({}, false);
+    expect((await target.engine.restore(analysis.target)).status).toBe('restored');
+    expect(readDataKeys(target.storage).inventory_stockCounts).toBe(COUNTS);
+  });
+
+  it('restoring a pre-C1 backup removes the counts, and Undo brings them back exactly', async () => {
+    const { storage, engine } = setup(withCounts(), false);
+    expect((await engine.restore(REAL)).status).toBe('restored');
+    expect(readDataKeys(storage).inventory_stockCounts).toBeUndefined();
+    resetGuardForTests();
+    expect((await engine.undoLastRestore()).status).toBe('restored');
+    expect(readDataKeys(storage).inventory_stockCounts).toBe(COUNTS);
+  });
+
+  it('a backup with corrupted counts cannot be restored', async () => {
+    const source = setup({ ...REAL, inventory_stockCounts: '{"schemaVersion":1,"products":{"x":{"counts":[{"units":-3}]}}}' }, false);
+    const analysis = await analyzeBackup(serializeExport(await createExport(source.storage, context())));
+    expect(analysis.canRestore).toBe(false);
+  });
+
+  it('crash in the middle of a restore: the next start puts the counts back exactly', async () => {
+    const s = setup(withCounts(), false);
+    const before = s.dump();
+    class Crash extends Error {}
+    let crashDump: Record<string, string> | undefined;
+    s.faults.beforeWrite = key => {
+      if (key === 'inventory_products' && !crashDump) {
+        crashDump = s.dump();
+        throw new Crash('power cut');
+      }
+    };
+    const putJournal = s.store.putJournal;
+    s.store.putJournal = async record => {
+      if (crashDump) throw new Error('process is dead');
+      return putJournal(record);
+    };
+    const clearJournal = s.store.clearJournal;
+    s.store.clearJournal = async () => {
+      if (crashDump) throw new Error('process is dead');
+      return clearJournal();
+    };
+    await s.engine.restore(REAL).catch(() => undefined);
+    resetGuardForTests();
+    const restarted = makeStorage(crashDump!);
+    s.store.putJournal = putJournal;
+    s.store.clearJournal = clearJournal;
+    const engine = createRestoreEngine({ storage: restarted.storage, store: s.store, exportContext: context });
+    expect((await engine.recover()).status).toBe('rolled-back');
+    expect(restarted.dump()).toEqual(before);
+  });
+
+  it('every real PR #1 backup still restores (none has counts, so nothing is lost on a new device)', async () => {
+    const files = ['pr1-b291176-arizona-demo.json', 'pr1-c3d8d63-arizona-demo.json'];
+    for (const file of files) {
+      const analysis = await analyzeBackup(readFileSync(`fixtures/exports/${file}`, 'utf8'));
+      expect(analysis.canRestore).toBe(true);
+      const { engine, storage } = setup({}, false);
+      expect((await engine.restore(analysis.target)).status).toBe('restored');
+      expect(readDataKeys(storage)).toEqual(analysis.target);
+    }
+  });
+});

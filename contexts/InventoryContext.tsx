@@ -1,7 +1,20 @@
-import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useRef, useSyncExternalStore, ReactNode } from 'react';
 import { Product, Supplier, Order, OrderItem } from '../types';
 import { audioManager } from '../utils/audioManager';
-import { guardedSetItem, loadGuarded } from '../utils/storageGuard';
+import { getGuardState, guardedSetItem, isKeyBlocked, loadGuarded, subscribeGuard } from '../utils/storageGuard';
+import { OrderUnit, SupplierWorkflow, lineUnit, newLineUnit, resolveSupplierWorkflow } from '../utils/supplierWorkflow';
+import {
+  STOCK_COUNTS_KEY,
+  StockCount,
+  StockCountsDoc,
+  StockView,
+  emptyStockCounts,
+  getStockView,
+  isValidCountUnits,
+  retireProductCounts,
+  usedProductIds,
+  withCount,
+} from '../utils/stockCounts';
 
 const initialSuppliers: Supplier[] = [
   { id: 'sup1', name: "Boar's Head", color: 'bg-red-800' },
@@ -218,17 +231,34 @@ export interface InventoryContextType {
   deliName: string;
   getProductById: (id: string) => Product | undefined;
   getSupplierById: (id: string) => Supplier | undefined;
+  /** Adds to the product's line in its supplier's unit (cases, or items for Boar's Head). */
   addToOrder: (productId: string, quantity: number) => void;
-  removeFromOrder: (productId: string) => void;
-  updateOrderItemQuantity: (productId: string, newQuantity: number) => void;
+  /** Removes the product's line in `unit`; without a unit, every line of the product. */
+  removeFromOrder: (productId: string, unit?: OrderUnit) => void;
+  /** Without a unit, changes the line in the product's current ordering unit. */
+  updateOrderItemQuantity: (productId: string, newQuantity: number, unit?: OrderUnit) => void;
+  /** Explicitly turns an older case line of an item-ordered supplier into an item line. */
+  convertOrderLineToItems: (productId: string) => void;
   clearOrder: () => void;
   addProduct: (productData: Omit<Product, 'id' | 'currentStockUnits'>) => void;
   updateProduct: (productData: Product) => void;
   deleteProduct: (productId: string) => void;
-  updateProductStock: (productId: string, newStock: number) => void;
   addSupplier: (supplier: Omit<Supplier, 'id'>) => void;
   updateDeliName: (newName: string) => void;
+  /** How a supplier is ordered from and whether its products are stock-counted. */
+  getWorkflow: (supplierId: string) => SupplierWorkflow;
+  /** What to show for a product's stock. Never presents old or unreadable numbers as counted. */
+  getStock: (product: Product) => StockView;
+  /**
+   * The only way stock is recorded (Classic View now, The Counter later). Reports success only
+   * after the count is saved in storage. Never writes `inventory_products`.
+   */
+  saveStockCount: (productId: string, units: number, source: 'classic' | 'confirmed-legacy') => SaveCountResult;
 }
+
+export type SaveCountResult =
+  | { ok: true; count: StockCount }
+  | { ok: false; reason: 'invalid' | 'not-tracked' | 'missing-product' | 'blocked' | 'write-failed' };
 
 export const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
@@ -254,6 +284,22 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
   );
 
 
+  // Verified stock counts. Never written at startup: the key is only created by the first count.
+  const [stockCounts, setStockCounts] = useState<StockCountsDoc>(() =>
+    loadGuarded<StockCountsDoc>(STOCK_COUNTS_KEY, { parse: JSON.parse, fallback: emptyStockCounts, serialize: JSON.stringify }).value
+  );
+  const stockCountsRef = useRef(stockCounts);
+  const guard = useSyncExternalStore(subscribeGuard, getGuardState);
+  // Unreadable, unavailable or changed in another tab: nothing is shown as counted, nothing is saved.
+  const countsAvailable = !guard.blocked.some(entry => entry.key === STOCK_COUNTS_KEY);
+
+  const commitStockCounts = (next: StockCountsDoc): boolean => {
+    if (!guardedSetItem(STOCK_COUNTS_KEY, JSON.stringify(next))) return false;
+    stockCountsRef.current = next;
+    setStockCounts(next);
+    return true;
+  };
+
   useEffect(() => { guardedSetItem('inventory_products', JSON.stringify(products)); }, [products]);
   useEffect(() => { guardedSetItem('inventory_suppliers', JSON.stringify(suppliers)); }, [suppliers]);
   useEffect(() => { guardedSetItem('inventory_currentOrder', JSON.stringify(currentOrder)); }, [currentOrder]);
@@ -262,50 +308,100 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
 
   const getProductById = useCallback((id: string) => products.find(p => p.id === id), [products]);
   const getSupplierById = useCallback((id: string) => suppliers.find(s => s.id === id), [suppliers]);
+  const getWorkflow = useCallback((supplierId: string) => resolveSupplierWorkflow(supplierId), []);
+  const unitForNewLine = useCallback(
+    (productId: string): OrderUnit => {
+      const product = products.find(p => p.id === productId);
+      return newLineUnit(resolveSupplierWorkflow(product?.supplierId));
+    },
+    [products],
+  );
+
+  const getStock = useCallback(
+    (product: Product) => getStockView(product, resolveSupplierWorkflow(product.supplierId), stockCounts, countsAvailable),
+    [stockCounts, countsAvailable],
+  );
+
+  const saveStockCount = useCallback(
+    (productId: string, units: number, source: 'classic' | 'confirmed-legacy'): SaveCountResult => {
+      const product = products.find(p => p.id === productId);
+      if (!product) return { ok: false, reason: 'missing-product' };
+      if (!resolveSupplierWorkflow(product.supplierId).countStock) return { ok: false, reason: 'not-tracked' };
+      if (!isValidCountUnits(units)) return { ok: false, reason: 'invalid' };
+      if (isKeyBlocked(STOCK_COUNTS_KEY)) return { ok: false, reason: 'blocked' };
+      const count: StockCount = { units, countedAt: new Date().toISOString(), source, unitsPerCaseAtCount: product.unitsPerCase };
+      if (!commitStockCounts(withCount(stockCountsRef.current, productId, count))) {
+        return { ok: false, reason: isKeyBlocked(STOCK_COUNTS_KEY) ? 'blocked' : 'write-failed' };
+      }
+      return { ok: true, count };
+    },
+    [products],
+  );
   
   const updateDeliName = (newName: string) => {
     setDeliName(newName);
   };
 
   const addToOrder = useCallback((productId: string, quantity: number) => {
+    const unit = unitForNewLine(productId);
     setCurrentOrder(prevOrder => {
-      const existingItemIndex = prevOrder.items.findIndex(item => item.productId === productId);
+      // Only a line in the same unit is added to. An older case line is never counted as items.
+      const existingItemIndex = prevOrder.items.findIndex(item => item.productId === productId && lineUnit(item) === unit);
       let newItems: OrderItem[];
 
       if (existingItemIndex > -1) {
         newItems = [...prevOrder.items];
         newItems[existingItemIndex] = { ...newItems[existingItemIndex], quantity: newItems[existingItemIndex].quantity + quantity };
       } else {
-        newItems = [...prevOrder.items, { productId, quantity }];
+        // Case lines keep the pre-C1 shape (no unit field).
+        newItems = [...prevOrder.items, unit === 'item' ? { productId, quantity, unit: 'item' } : { productId, quantity }];
       }
       audioManager.play('add');
       vibrate();
       return { ...prevOrder, items: newItems };
     });
-  }, []);
+  }, [unitForNewLine]);
   
-  const removeFromOrder = useCallback((productId: string) => {
+  const removeFromOrder = useCallback((productId: string, unit?: OrderUnit) => {
     setCurrentOrder(prevOrder => ({
       ...prevOrder,
-      items: prevOrder.items.filter(item => item.productId !== productId),
+      items: prevOrder.items.filter(item => item.productId !== productId || (unit !== undefined && lineUnit(item) !== unit)),
     }));
     audioManager.play('remove');
     vibrate();
   }, []);
 
-  const updateOrderItemQuantity = useCallback((productId: string, newQuantity: number) => {
+  const updateOrderItemQuantity = useCallback((productId: string, newQuantity: number, unit?: OrderUnit) => {
+    const lineUnitToChange = unit ?? unitForNewLine(productId);
     if (newQuantity <= 0) {
-      removeFromOrder(productId);
+      removeFromOrder(productId, lineUnitToChange);
       return;
     }
     setCurrentOrder(prevOrder => ({
       ...prevOrder,
       items: prevOrder.items.map(item =>
-        item.productId === productId ? { ...item, quantity: newQuantity } : item
+        item.productId === productId && lineUnit(item) === lineUnitToChange ? { ...item, quantity: newQuantity } : item
       ),
     }));
     vibrate(20);
-  }, [removeFromOrder]);
+  }, [removeFromOrder, unitForNewLine]);
+
+  const convertOrderLineToItems = useCallback((productId: string) => {
+    if (unitForNewLine(productId) !== 'item') return;
+    setCurrentOrder(prevOrder => {
+      const caseLine = prevOrder.items.find(item => item.productId === productId && lineUnit(item) === 'case');
+      if (!caseLine) return prevOrder;
+      const hasItemLine = prevOrder.items.some(item => item.productId === productId && lineUnit(item) === 'item');
+      const items = hasItemLine
+        ? prevOrder.items
+            .filter(item => item !== caseLine)
+            .map(item =>
+              item.productId === productId && lineUnit(item) === 'item' ? { ...item, quantity: item.quantity + caseLine.quantity } : item
+            )
+        : prevOrder.items.map(item => (item === caseLine ? { ...item, unit: 'item' as const } : item));
+      return { ...prevOrder, items };
+    });
+  }, [unitForNewLine]);
   
   const clearOrder = useCallback(() => {
     setCurrentOrder({ items: [], createdAt: new Date().toISOString() });
@@ -314,14 +410,18 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addProduct = useCallback((productData: Omit<Product, 'id' | 'currentStockUnits'>) => {
+    // Never reuse an id that has count history, so a new product cannot inherit old counts.
+    const used = usedProductIds(products, stockCountsRef.current);
+    let id = `prod_${new Date().getTime()}`;
+    for (let n = 2; used.has(id); n++) id = `prod_${new Date().getTime()}_${n}`;
     const newProduct: Product = {
       ...productData,
-      id: `prod_${new Date().getTime()}`,
-      currentStockUnits: 0, // start with 0 stock
+      id,
+      currentStockUnits: 0, // legacy field; real stock is only ever a verified count
     };
     setProducts(prev => [newProduct, ...prev]);
     audioManager.play('add');
-  }, []);
+  }, [products]);
 
   const updateProduct = useCallback((productData: Product) => {
     setProducts(prev => prev.map(p => (p.id === productData.id ? productData : p)));
@@ -329,6 +429,9 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const deleteProduct = useCallback((productId: string) => {
+    // Its verified counts are kept, hidden, and can never attach to another product.
+    const retired = retireProductCounts(stockCountsRef.current, productId, new Date().toISOString());
+    if (retired !== stockCountsRef.current) commitStockCounts(retired);
     setProducts(prev => prev.filter(p => p.id !== productId));
     // Also remove from current order if it's there
     removeFromOrder(productId);
@@ -336,12 +439,6 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     vibrate([100, 50, 100]);
   }, [removeFromOrder]);
   
-  const updateProductStock = useCallback((productId: string, newStock: number) => {
-    setProducts(prev =>
-      prev.map(p => (p.id === productId ? { ...p, currentStockUnits: newStock } : p))
-    );
-  }, []);
-
   const addSupplier = useCallback((supplierData: Omit<Supplier, 'id'>) => {
     const newSupplier: Supplier = {
       ...supplierData,
@@ -361,13 +458,16 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     addToOrder,
     removeFromOrder,
     updateOrderItemQuantity,
+    convertOrderLineToItems,
     clearOrder,
     addProduct,
     updateProduct,
     deleteProduct,
-    updateProductStock,
     addSupplier,
-    updateDeliName
+    updateDeliName,
+    getWorkflow,
+    getStock,
+    saveStockCount,
   };
 
   return (

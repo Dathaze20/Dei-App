@@ -14,7 +14,47 @@ export interface Screen {
   path: string;
   /** Interactions after the page has loaded. */
   prepare?: (page: Page) => Promise<void>;
+  /** Stored data added on top of the real export. Older builds simply ignore keys they don't know. */
+  data?: Record<string, string>;
+  /** Uses UI that only exists since this milestone, so it cannot be photographed on older builds. */
+  since?: 'c1';
 }
+
+// C1 data: two verified counts, and an order mixing Arizona cases with Boar's Head items.
+const C1_COUNTS = JSON.stringify({
+  schemaVersion: 1,
+  products: {
+    az_rx_fruitpunch_slim11_5: {
+      counts: [
+        { units: 18, countedAt: '2026-10-15T13:40:00.000Z', source: 'classic', unitsPerCaseAtCount: 24 },
+        { units: 20, countedAt: '2026-10-12T11:05:00.000Z', source: 'classic', unitsPerCaseAtCount: 24 },
+      ],
+    },
+    az_rx_caution_slim11_5: { counts: [{ units: 0, countedAt: '2026-10-15T13:41:00.000Z', source: 'classic', unitsPerCaseAtCount: 24 }] },
+  },
+});
+const C1_ORDER = JSON.stringify({
+  items: [
+    { productId: 'az_rx_fruitpunch_slim11_5', quantity: 1 },
+    { productId: 'az_rx_caution_slim11_5', quantity: 1 },
+    { productId: 'bh_turkey', quantity: 1, unit: 'item' },
+    { productId: 'bh_american', quantity: 1, unit: 'item' },
+    { productId: 'bh_provolone', quantity: 1 },
+  ],
+  createdAt: '2026-10-15T08:00:00.000Z',
+});
+const c1Data = { inventory_stockCounts: C1_COUNTS, inventory_currentOrder: C1_ORDER };
+
+const openFruitPunch = async (page: Page) => {
+  await openArizona(page);
+  await page.getByText('Caution Extreme Fruit Punch').first().click();
+  await expect(page.locator('img[alt*="Caution Extreme Fruit Punch"]').last()).toBeVisible();
+};
+
+const openBoarsHead = async (page: Page) => {
+  await chip(page, "Boar's Head").click();
+  await expect(page.getByText('OvenGold Turkey Breast').first()).toBeVisible();
+};
 
 const chip = (page: Page, name: string) =>
   page.getByRole('button', { name, exact: true }).filter({ visible: true }).first();
@@ -94,6 +134,28 @@ export const SCREENS: Screen[] = [
   { name: 'order-arabic', theme: 'light', language: 'ar', path: '/order' },
   { name: 'manage-arabic', theme: 'light', language: 'ar', path: '/manage' },
   { name: 'supplier-view-spanish', theme: 'light', language: 'es', path: '/' },
+  // C1 states. The data is also loaded into the `main` build, which ignores what it doesn't know.
+  { name: 'c1-counted-arizona-light', theme: 'light', language: 'en', path: '/', prepare: openArizona, data: c1Data },
+  { name: 'c1-counted-detail-light', theme: 'light', language: 'en', path: '/', prepare: openFruitPunch, data: c1Data },
+  { name: 'c1-counted-detail-arabic-dark', theme: 'dark', language: 'ar', path: '/', prepare: openFruitPunch, data: c1Data },
+  { name: 'c1-boarshead-light', theme: 'light', language: 'en', path: '/', prepare: openBoarsHead, data: c1Data },
+  { name: 'c1-mixed-order-light', theme: 'light', language: 'en', path: '/order', data: c1Data },
+  { name: 'c1-mixed-order-dark', theme: 'dark', language: 'en', path: '/order', data: c1Data },
+  { name: 'c1-mixed-order-spanish', theme: 'light', language: 'es', path: '/order', data: c1Data },
+  { name: 'c1-mixed-share-light', theme: 'light', language: 'en', path: '/order', prepare: openShare, data: c1Data },
+  {
+    name: 'c1-confirm-old-number-light',
+    theme: 'light',
+    language: 'en',
+    path: '/',
+    since: 'c1',
+    prepare: async page => {
+      await openArizona(page);
+      await page.getByText('Caution Extreme Performance').first().click();
+      await page.getByRole('button', { name: /^Use old number/ }).click();
+      await expect(page.getByTestId('confirm-old-number')).toBeVisible();
+    },
+  },
 ];
 
 /**
@@ -109,7 +171,7 @@ export const showScreen = async (page: Page, screen: Screen) => {
       localStorage.setItem('theme', theme);
       localStorage.setItem('language', language);
     },
-    { data: REAL, theme: screen.theme, language: screen.language },
+    { data: { ...REAL, ...screen.data }, theme: screen.theme, language: screen.language },
   );
   // A different query string forces a full page load (a hash-only change would not), so the app
   // starts fresh and reads the data written above.

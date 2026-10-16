@@ -41,6 +41,7 @@ import {
   verifyExportText,
 } from './dataExport';
 import { validateStoredValue } from './dataValidation';
+import { StockCountsDoc, validateStockCountsValue } from './stockCounts';
 import { JournalRecord, SafetyStore, SnapshotPurpose, SnapshotRecord } from './safetyStore';
 import { resumeWrites, suspendWrites } from './storageGuard';
 
@@ -162,7 +163,36 @@ export interface RestoreDiff {
   settings: ValueChange[];
   /** Other app-owned keys (e.g. future inventory_* data) that are added, removed or changed. */
   otherDataKeys: ValueChange[];
+  /**
+   * Verified stock counts (C1). `before`/`after`: products with counts (null = unreadable).
+   * `lost`: products counted on this device whose counts the backup does not have; for example
+   * any pre-C1 backup. The restore screen requires a separate acknowledgement when it is above 0.
+   */
+  stockCounts: { before: number | null; after: number | null; lost: number; changed: boolean };
 }
+
+const countedIds = (raw: string | undefined): Set<string> | null => {
+  if (raw === undefined) return new Set();
+  try {
+    const value = JSON.parse(raw);
+    if (validateStockCountsValue(value).length > 0) return null;
+    const products = (value as StockCountsDoc).products;
+    return new Set(Object.keys(products).filter(id => products[id].counts.length > 0));
+  } catch {
+    return null;
+  }
+};
+
+const diffStockCounts = (beforeText: string | undefined, afterText: string | undefined): RestoreDiff['stockCounts'] => {
+  const before = countedIds(beforeText);
+  const after = countedIds(afterText);
+  return {
+    before: before ? before.size : null,
+    after: after ? after.size : null,
+    lost: before ? [...before].filter(id => !after?.has(id)).length : 0,
+    changed: (beforeText ?? null) !== (afterText ?? null),
+  };
+};
 
 type AnyRecord = Record<string, unknown> & { id?: unknown };
 
@@ -216,10 +246,15 @@ const countOrderLines = (text: string | undefined): number | null => {
 };
 
 const SETTINGS_KEYS: string[] = [KNOWN_STORAGE_KEYS.deliName.key, KNOWN_STORAGE_KEYS.theme.key, KNOWN_STORAGE_KEYS.language.key];
-const LIST_KEYS: string[] = [KNOWN_STORAGE_KEYS.products.key, KNOWN_STORAGE_KEYS.suppliers.key, KNOWN_STORAGE_KEYS.currentOrder.key];
+const LIST_KEYS: string[] = [
+  KNOWN_STORAGE_KEYS.products.key,
+  KNOWN_STORAGE_KEYS.suppliers.key,
+  KNOWN_STORAGE_KEYS.currentOrder.key,
+  KNOWN_STORAGE_KEYS.stockCounts.key,
+];
 
 export const diffRestore = (current: Record<string, string>, target: Record<string, string>): RestoreDiff => {
-  const { products, suppliers, currentOrder } = KNOWN_STORAGE_KEYS;
+  const { products, suppliers, currentOrder, stockCounts } = KNOWN_STORAGE_KEYS;
   const change = (key: string): ValueChange => ({ key, before: current[key] ?? null, after: target[key] ?? null });
   const differs = (key: string) => (current[key] ?? null) !== (target[key] ?? null);
   const others = Array.from(new Set([...Object.keys(current), ...Object.keys(target)]))
@@ -231,6 +266,7 @@ export const diffRestore = (current: Record<string, string>, target: Record<stri
     orderLines: { before: countOrderLines(current[currentOrder.key]), after: countOrderLines(target[currentOrder.key]) },
     settings: SETTINGS_KEYS.filter(differs).map(change),
     otherDataKeys: others.filter(differs).map(change),
+    stockCounts: diffStockCounts(current[stockCounts.key], target[stockCounts.key]),
   };
 };
 

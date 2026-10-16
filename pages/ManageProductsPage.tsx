@@ -8,6 +8,7 @@ import SupplierForm from '../components/SupplierForm';
 import ShelfTagModal from '../components/ShelfTagModal';
 import DataExportPanel from '../components/DataExportPanel';
 import RestorePanel from '../components/RestorePanel';
+import StockLabel from '../components/StockLabel';
 import AnimatedPage from '../components/AnimatedPage';
 import { motion } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
@@ -33,7 +34,7 @@ const itemVariants = {
 
 
 const ManageProductsPage: React.FC = () => {
-  const { products, suppliers, addProduct, updateProduct, deleteProduct, getSupplierById, addSupplier, deliName, updateDeliName } = useInventory();
+  const { products, suppliers, addProduct, updateProduct, deleteProduct, getSupplierById, addSupplier, deliName, updateDeliName, getWorkflow } = useInventory();
   const { t } = useTranslation();
   const [isModalOpen, setModalOpen] = useState(false);
   const [isSupplierModalOpen, setSupplierModalOpen] = useState(false);
@@ -162,7 +163,7 @@ const ManageProductsPage: React.FC = () => {
                 <div className="px-4 pb-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-slate-500 dark:text-slate-400">Stock:</span>
-                    <span>{product.currentStockUnits} / {product.reorderThresholdUnits} units</span>
+                    <span>{getWorkflow(product.supplierId).countStock ? <StockLabel product={product} /> : '—'}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-slate-500 dark:text-slate-400">UPC:</span>
@@ -206,7 +207,7 @@ const ManageProductsPage: React.FC = () => {
                               </div>
                           </td>
                           <td className="p-4">{supplier ? <SupplierChip supplier={supplier} /> : 'N/A'}</td>
-                          <td className="p-4 font-medium">{product.currentStockUnits} / <span className="text-brand-muted">{product.reorderThresholdUnits}</span></td>
+                          <td className="p-4 font-medium">{getWorkflow(product.supplierId).countStock ? <StockLabel product={product} /> : '—'}</td>
                           <td className="p-4 font-mono text-xs text-slate-500">{product.upc || '-'}</td>
                           <td className="p-4">
                             <div className="flex gap-2">

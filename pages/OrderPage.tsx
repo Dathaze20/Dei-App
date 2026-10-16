@@ -4,45 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import useInventory from '../hooks/useInventory';
 import { PlusIcon, MinusIcon, TrashIcon, ShareIcon, XIcon, ShoppingCartIcon, HomeIcon, EnvelopeIcon, ClipboardListIcon, CheckCircleIcon, AlertTriangleIcon } from '../components/shared/icons';
 import SupplierChip from '../components/SupplierChip';
-import { Supplier, Product } from '../types';
+import { buildOrderSummary, buildOrderText } from '../utils/orderSummary';
 import AnimatedPage from '../components/AnimatedPage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
 import Modal from '../components/Modal';
-
-interface OrderDetail {
-    productId: string;
-    quantity: number;
-    product: Product;
-    supplier: Supplier | undefined;
-}
-
-const getEmojiForColor = (colorClass: string): string => {
-  const colorMap: { [key: string]: string } = {
-    red: '🔴',
-    orange: '🟠',
-    amber: '🟠',
-    yellow: '🟡',
-    lime: '🟢',
-    green: '🟢',
-    emerald: '🟢',
-    teal: '🔵',
-    cyan: '🔵',
-    blue: '🔵',
-    indigo: '🟣',
-    violet: '🟣',
-    purple: '🟣',
-    fuchsia: '💖',
-    pink: '💖',
-    rose: '💖',
-    slate: '⚪️',
-  };
-
-  // e.g., 'bg-red-800' -> 'red'
-  const colorNameMatch = colorClass.match(/bg-([a-z]+)-/);
-  const colorName = colorNameMatch ? colorNameMatch[1] : '';
-  return colorMap[colorName] || '▪️'; // Default to a black square
-};
+import OverlayPortal from '../components/OverlayPortal';
 
 const itemVariants = {
   hidden: { opacity: 0, x: -50 },
@@ -51,7 +18,7 @@ const itemVariants = {
 };
 
 const OrderPage: React.FC = () => {
-  const { currentOrder, getProductById, getSupplierById, updateOrderItemQuantity, removeFromOrder, deliName, clearOrder } = useInventory();
+  const { currentOrder, getProductById, getSupplierById, updateOrderItemQuantity, removeFromOrder, convertOrderLineToItems, deliName, clearOrder, getWorkflow } = useInventory();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [isShareModalOpen, setShareModalOpen] = useState(false);
@@ -59,63 +26,17 @@ const OrderPage: React.FC = () => {
   const [isClearConfirmOpen, setClearConfirmOpen] = useState(false);
 
 
-  const groupedOrder = useMemo(() => {
-    const orderDetails: OrderDetail[] = currentOrder.items.map(item => {
-      const product = getProductById(item.productId);
-      if (!product) return null;
-      const supplier = getSupplierById(product.supplierId);
-      return { ...item, product, supplier };
-    }).filter((item): item is OrderDetail => item !== null);
+  // One summary drives the page and the shared text (QR code, Copy Text, Send as Text).
+  const summary = useMemo(
+    () => buildOrderSummary(currentOrder.items, getProductById, getSupplierById, getWorkflow),
+    [currentOrder.items, getProductById, getSupplierById, getWorkflow],
+  );
 
-    const groups: Record<string, { supplier: Supplier; items: OrderDetail[] }> = {};
-    for (const item of orderDetails) {
-        if (item && item.supplier) {
-            if (!groups[item.supplier.id]) {
-                groups[item.supplier.id] = { supplier: item.supplier, items: [] };
-            }
-            groups[item.supplier.id].items.push(item);
-        }
-    }
+  const orderTextForSharing = useMemo(() => buildOrderText(summary, deliName, new Date(), t), [summary, deliName, t]);
 
-    return Object.values(groups).map(group => {
-        const subtotal = group.items.reduce((total, item) => total + item.product.costPrice * item.quantity, 0);
-        return { ...group, subtotal };
-    }).sort((a,b) => a.supplier.name.localeCompare(b.supplier.name));
-
-  }, [currentOrder.items, getProductById, getSupplierById]);
-
-
-  const overallTotal = useMemo(() => {
-    return groupedOrder.reduce((total, group) => total + group.subtotal, 0);
-  }, [groupedOrder]);
-
-
-  const orderTextForSharing = useMemo(() => {
-    let text = `🧾 *${deliName.toUpperCase()} - ${t('order').toUpperCase()}* 🧾\n`;
-    text += `****************************************\n`;
-    text += `Date: ${new Date().toLocaleString()}\n\n`;
-
-    groupedOrder.forEach(group => {
-        const emoji = getEmojiForColor(group.supplier.color);
-        text += `----------------------------------------\n`;
-        text += ` ${emoji} *${group.supplier.name.toUpperCase()}*\n`;
-        text += `----------------------------------------\n`;
-        group.items.forEach(item => {
-            const itemTotal = item.product.costPrice * item.quantity;
-            text += `› ${item.quantity} ${t('casesUnit')} - ${item.product.name} (${item.product.flavor})\n`;
-            text += `  ($${item.product.costPrice.toFixed(2)}/case) .... $${itemTotal.toFixed(2)}\n\n`;
-        });
-        text += `*${t('total')} $${group.subtotal.toFixed(2)}*\n`;
-        text += `----------------------------------------\n\n`;
-    });
-    
-    text += `========================================\n`;
-    text += `    *${t('total').toUpperCase()} $${overallTotal.toFixed(2)}*\n`;
-    text += `========================================\n`;
-    text += `Generated by DeliOrderNYC App`;
-
-    return text;
-  }, [groupedOrder, overallTotal, deliName, t]);
+  const handleConvert = (productId: string, quantity: number) => {
+    if (window.confirm(t('convertToItemsConfirm', { quantity }))) convertOrderLineToItems(productId);
+  };
   
   const handleCloseShareModal = () => {
     setShareModalOpen(false);
@@ -151,7 +72,7 @@ const OrderPage: React.FC = () => {
         <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-6">{t('currentOrderTitle')}</h1>
         <div className="space-y-6">
           <AnimatePresence>
-            {groupedOrder.map(group => (
+            {summary.groups.map(group => (
               <motion.div 
                 key={group.supplier.id}
                 layout
@@ -162,36 +83,54 @@ const OrderPage: React.FC = () => {
               >
                 <div className="flex justify-between items-center bg-slate-100/70 dark:bg-slate-800/70 p-3">
                     <SupplierChip supplier={group.supplier} />
-                    <span className="font-bold text-slate-700 dark:text-slate-200">${group.subtotal.toFixed(2)}</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-200">
+                      {group.subtotal !== null ? `$${group.subtotal.toFixed(2)}` : t('notPriced')}
+                    </span>
                 </div>
                 <div className="space-y-2 p-2">
                     <AnimatePresence>
-                      {group.items.map(item => (
+                      {group.lines.map(line => {
+                      const { item, product, unit } = line;
+                      return (
                       <motion.div 
-                        key={item.productId} 
+                        key={`${item.productId}|${unit}`} 
                         className="flex items-center justify-between p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800/50"
                         variants={itemVariants}
                         initial="hidden"
                         animate="visible"
                         exit="exit"
                         layout
+                        data-testid="order-line"
                       >
-                          <img src={item.product.imageUrl || 'https://placehold.co/100x100/e2e8f0/4a5568?text=N/A'} alt={item.product.name} className="w-12 h-12 object-cover rounded-md me-4 flex-shrink-0 bg-slate-200" />
+                          <img src={product.imageUrl || 'https://placehold.co/100x100/e2e8f0/4a5568?text=N/A'} alt={product.name} className="w-12 h-12 object-cover rounded-md me-4 flex-shrink-0 bg-slate-200" />
                           <div className="flex-1">
-                            <h3 className="font-bold text-md text-slate-800 dark:text-slate-100">{item.product.name} <span className="text-brand-muted font-normal">({item.product.flavor})</span></h3>
-                            <p className="text-sm text-slate-500">{item.quantity} x ${item.product.costPrice.toFixed(2)}/case</p>
+                            <h3 className="font-bold text-md text-slate-800 dark:text-slate-100">{product.name} <span className="text-brand-muted font-normal">({product.flavor})</span></h3>
+                            {line.priced ? (
+                              <p className="text-sm text-slate-500">{item.quantity} x ${product.costPrice.toFixed(2)}/case</p>
+                            ) : line.olderCaseLine ? (
+                              <div className="text-sm text-amber-700 dark:text-amber-300">
+                                <p className="font-semibold">{item.quantity} {t('casesUnit')} · {t('olderCaseLine')}</p>
+                                <p className="text-xs">{t('olderCaseLineHelp', { quantity: item.quantity })}</p>
+                                <button type="button" onClick={() => handleConvert(item.productId, item.quantity)} className="mt-1 min-h-[44px] px-3 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100 font-semibold">
+                                  {t('convertToItems')}
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-slate-500">{t('itemsQuantity', { quantity: item.quantity })}</p>
+                            )}
                           </div>
                           <div className="flex items-center space-x-2">
-                            <motion.button whileTap={{scale: 0.9}} whileHover={{scale: 1.1}} onClick={() => updateOrderItemQuantity(item.productId, item.quantity - 1)} className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><MinusIcon className="h-5 w-5"/></motion.button>
+                            <motion.button whileTap={{scale: 0.9}} whileHover={{scale: 1.1}} onClick={() => updateOrderItemQuantity(item.productId, item.quantity - 1, unit)} className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><MinusIcon className="h-5 w-5"/></motion.button>
                             <span className="text-lg font-bold w-8 text-center">{item.quantity}</span>
-                            <motion.button whileTap={{scale: 0.9}} whileHover={{scale: 1.1}} onClick={() => updateOrderItemQuantity(item.productId, item.quantity + 1)} className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><PlusIcon className="h-5 w-5"/></motion.button>
+                            <motion.button whileTap={{scale: 0.9}} whileHover={{scale: 1.1}} onClick={() => updateOrderItemQuantity(item.productId, item.quantity + 1, unit)} className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><PlusIcon className="h-5 w-5"/></motion.button>
                           </div>
                           <div className="text-end w-24 ms-4">
-                              <p className="font-bold text-md">${(item.product.costPrice * item.quantity).toFixed(2)}</p>
+                              {line.lineTotal !== null && <p className="font-bold text-md">${line.lineTotal.toFixed(2)}</p>}
                           </div>
-                          <motion.button whileTap={{scale: 0.9}} whileHover={{scale: 1.1}} onClick={() => removeFromOrder(item.productId)} className="ms-4 p-2 rounded-full text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
+                          <motion.button whileTap={{scale: 0.9}} whileHover={{scale: 1.1}} onClick={() => removeFromOrder(item.productId, unit)} className="ms-4 p-2 rounded-full text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
                       </motion.div>
-                      ))}
+                      );
+                      })}
                     </AnimatePresence>
                 </div>
               </motion.div>
@@ -199,9 +138,14 @@ const OrderPage: React.FC = () => {
           </AnimatePresence>
         </div>
         <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="text-3xl font-bold">
-            <span className="text-slate-500 dark:text-slate-400">{t('total')} </span>
-            <span className="text-slate-900 dark:text-white">${overallTotal.toFixed(2)}</span>
+          <div data-testid="order-total">
+            {(summary.hasPriced || !summary.hasUnpriced) && (
+              <div className="text-3xl font-bold">
+                <span className="text-slate-500 dark:text-slate-400">{summary.hasUnpriced ? t('pricedSubtotal') : t('total')} </span>
+                <span className="text-slate-900 dark:text-white">${summary.pricedTotal.toFixed(2)}</span>
+              </div>
+            )}
+            {summary.hasUnpriced && <p className="text-sm text-brand-muted">{t('unpricedNote')}</p>}
           </div>
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap justify-center">
                <motion.button
@@ -224,6 +168,7 @@ const OrderPage: React.FC = () => {
               </motion.button>
           </div>
         </div>
+        <OverlayPortal>
         <AnimatePresence>
         {isShareModalOpen && (
             <motion.div 
@@ -293,6 +238,7 @@ const OrderPage: React.FC = () => {
             </motion.div>
         )}
         </AnimatePresence>
+        </OverlayPortal>
         <Modal isOpen={isClearConfirmOpen} onClose={() => setClearConfirmOpen(false)} title={t('clearOrderConfirmationTitle')}>
             <div className="text-center p-4">
                 <AlertTriangleIcon className="mx-auto h-12 w-12 text-red-500" />

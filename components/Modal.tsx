@@ -1,6 +1,7 @@
 import React, { ReactNode, useEffect, useRef } from 'react';
 import { XIcon } from './shared/icons';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
+import OverlayPortal from './OverlayPortal';
 
 interface ModalProps {
   isOpen: boolean;
@@ -68,6 +69,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   const isMobile = typeof window !== 'undefined' ? window.innerWidth < 640 : false;
 
   return (
+    <OverlayPortal>
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -112,6 +114,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
         </motion.div>
       )}
     </AnimatePresence>
+    </OverlayPortal>
   );
 };
 

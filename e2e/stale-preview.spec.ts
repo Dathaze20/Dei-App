@@ -22,10 +22,11 @@ const otherTabEdits: [string, (tab: Page) => Promise<void>][] = [
     await tab.getByPlaceholder(/Search all products/).fill('Pepsi');
     await visible(tab).button(/Add 1 case/).click();
   }],
-  ['changes a stock count (through the product screen)', async tab => {
+  ['saves a stock count (through the product screen)', async tab => {
     await tab.locator('main img').filter({ visible: true }).first().click();
-    await tab.locator('#currentStock').fill('4');
-    await tab.waitForTimeout(800); // the stock field saves 500 ms after typing stops
+    await tab.locator('#stockCount').fill('4');
+    await tab.getByRole('button', { name: 'Save count' }).click();
+    await expect(tab.getByText('Count saved: 4 units.')).toBeVisible();
   }],
   ['saves a new wholesale price', async tab => {
     // Same effect as tab B saving an edited product: the stored price changes.

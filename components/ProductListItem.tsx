@@ -3,6 +3,8 @@ import { Product } from '../types';
 import { PlusIcon, MinusIcon, CheckCircleIcon } from './shared/icons';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
+import useInventory from '../hooks/useInventory';
+import StockLabel from './StockLabel';
 
 interface ProductListItemProps {
   product: Product;
@@ -28,6 +30,8 @@ const ProductListItem: React.FC<ProductListItemProps> = ({
   isInCart,
 }) => {
   const { t } = useTranslation();
+  const { getWorkflow } = useInventory();
+  const ordersItems = getWorkflow(product.supplierId).orderStyle === 'items';
   return (
     <motion.div 
       className="flex items-center gap-4 py-4 px-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg"
@@ -47,9 +51,7 @@ const ProductListItem: React.FC<ProductListItemProps> = ({
         <p className="font-bold text-lg text-slate-800 dark:text-slate-100 truncate">{product.name}</p>
         <p className="text-sm text-brand-muted">{product.flavor}</p>
         <div className="flex items-center gap-2 mt-1">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            {t('unitsInStock', { count: product.currentStockUnits })}
-          </p>
+          <StockLabel product={product} />
         </div>
       </div>
 
@@ -97,7 +99,7 @@ const ProductListItem: React.FC<ProductListItemProps> = ({
               <motion.button
                 onClick={() => onAddToOrder(product.id)}
                 className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold p-3 rounded-xl transition-colors shadow-lg shadow-brand-primary/20"
-                aria-label={t('addToOrderAria', { quantity: orderQuantity })}
+                aria-label={ordersItems ? t('addItemsAria', { quantity: orderQuantity }) : t('addToOrderAria', { quantity: orderQuantity })}
                 whileHover={{ scale: 1.1, y: -2, boxShadow: "0px 8px 15px rgba(79, 70, 229, 0.3)" }}
                 whileTap={{ scale: 0.95 }}
               >

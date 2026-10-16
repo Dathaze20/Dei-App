@@ -34,6 +34,9 @@ export const KNOWN_STORAGE_KEYS = {
   deliName: { key: 'inventory_deliName', encoding: 'string' },
   theme: { key: 'theme', encoding: 'string' },
   language: { key: 'language', encoding: 'string' },
+  // Added in C1: verified physical stock counts (see utils/stockCounts.ts). Older backups do not
+  // have it, and older app versions keep it as an unknown app key.
+  stockCounts: { key: 'inventory_stockCounts', encoding: 'json' },
 } as const;
 
 export type KnownDataField = keyof typeof KNOWN_STORAGE_KEYS;
@@ -92,7 +95,12 @@ export interface ExportSummary {
   productCount: number | null;
   supplierCount: number | null;
   orderLineCount: number | null;
+  /** Total quantity of case lines (lines without a unit, which have always meant cases). */
   orderCaseCount: number | null;
+  /** Added in C1: total quantity of plain item lines (Boar's Head weekly list). */
+  orderItemCount?: number | null;
+  /** Added in C1: products with at least one verified stock count. */
+  verifiedCountProductCount?: number | null;
 }
 
 export interface DataExport {
@@ -201,16 +209,26 @@ const summarize = (
   excludedKeyCount: number,
 ): ExportSummary => {
   const order = data.currentOrder as { items?: unknown } | null;
-  const items = order && Array.isArray(order.items) ? (order.items as Array<{ quantity?: unknown }>) : null;
+  const items = order && Array.isArray(order.items) ? (order.items as Array<{ quantity?: unknown; unit?: unknown }>) : null;
+  const sumQuantities = (lines: Array<{ quantity?: unknown }>) =>
+    lines.reduce((total, item) => total + (typeof item.quantity === 'number' ? item.quantity : 0), 0);
+  const counts = data.stockCounts as { products?: unknown } | null;
   return {
     includedKeyCount: Object.keys(raw).length,
     excludedKeyCount,
     productCount: countOrNull(data.products),
     supplierCount: countOrNull(data.suppliers),
     orderLineCount: items ? items.length : null,
-    orderCaseCount: items
-      ? items.reduce((total, item) => total + (typeof item.quantity === 'number' ? item.quantity : 0), 0)
-      : null,
+    orderCaseCount: items ? sumQuantities(items.filter(item => item.unit !== 'item')) : null,
+    orderItemCount: items ? sumQuantities(items.filter(item => item.unit === 'item')) : null,
+    verifiedCountProductCount:
+      counts === null
+        ? 0
+        : typeof counts.products === 'object' && counts.products !== null
+          ? Object.values(counts.products as Record<string, { counts?: unknown }>).filter(
+              entry => Array.isArray(entry?.counts) && entry.counts.length > 0,
+            ).length
+          : null,
   };
 };
 

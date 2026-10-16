@@ -22,7 +22,13 @@ export interface Product {
 
 export interface OrderItem {
   productId: string;
-  quantity: number; // number of cases
+  /** Whole number. Cases, unless `unit` is 'item'. */
+  quantity: number;
+  /**
+   * Added in C1. 'item' for plain item lines (Boar's Head weekly list). Missing on every line
+   * saved before C1 and on all case lines, which keep meaning cases.
+   */
+  unit?: 'item';
 }
 
 export interface Order {

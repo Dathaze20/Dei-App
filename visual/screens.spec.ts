@@ -49,11 +49,17 @@ const PROPS = [
 
 for (const screen of SCREENS) {
   test(screen.name, async ({ page }) => {
+    test.skip(LABEL === 'before' && screen.since === 'c1', 'This screen only exists in the new build.');
     await showScreen(page, screen);
     await page.evaluate(() => document.fonts.ready);
     // Pictures in view have finished loading (the stand-in grey pixel).
     await page.waitForFunction(() =>
-      [...document.images].filter(img => img.getBoundingClientRect().top < innerHeight).every(img => img.complete),
+      [...document.images]
+        .filter(img => {
+          const rect = img.getBoundingClientRect();
+          return rect.top < innerHeight && rect.bottom > 0 && rect.width > 0;
+        })
+        .every(img => img.complete),
     );
     // Let entrance animations (framer-motion) finish.
     await page.waitForTimeout(1500);

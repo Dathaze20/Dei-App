@@ -40,6 +40,7 @@ const RestorePanel: React.FC = () => {
   const [analysis, setAnalysis] = useState<BackupAnalysis | null>(null);
   const [checking, setChecking] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [countsLossAcknowledged, setCountsLossAcknowledged] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<{ tone: 'error' | 'warning'; text: string } | null>(null);
@@ -79,6 +80,7 @@ const RestorePanel: React.FC = () => {
     setAnalysis(null);
     setReview(null);
     setAcknowledged(false);
+    setCountsLossAcknowledged(false);
     setConfirmed(false);
     setMessage(null);
   };
@@ -146,7 +148,16 @@ const RestorePanel: React.FC = () => {
   };
 
   const status = analysis?.verification.status;
-  const canSubmit = !!analysis?.canRestore && !!review && confirmed && (!analysis.requiresAcknowledgement || acknowledged) && !running;
+  // Restoring a backup without this device's verified stock counts (e.g. any backup made before
+  // stock counting existed) removes them, so that needs its own explicit acknowledgement.
+  const countsLost = diff?.stockCounts.lost ?? 0;
+  const canSubmit =
+    !!analysis?.canRestore &&
+    !!review &&
+    confirmed &&
+    (!analysis.requiresAcknowledgement || acknowledged) &&
+    (countsLost === 0 || countsLossAcknowledged) &&
+    !running;
 
   const countLine = (label: string, list: { before: number | null; after: number | null }) =>
     t('restoreCountChange', {
@@ -186,7 +197,8 @@ const RestorePanel: React.FC = () => {
     diff.suppliers.added.length + diff.suppliers.removed.length + diff.suppliers.changed.length === 0 &&
     diff.orderLines.before === diff.orderLines.after &&
     diff.settings.length === 0 &&
-    diff.otherDataKeys.length === 0;
+    diff.otherDataKeys.length === 0 &&
+    !diff.stockCounts.changed;
 
   return (
     <motion.section
@@ -278,6 +290,11 @@ const RestorePanel: React.FC = () => {
                   {renderList(t('products'), diff.products)}
                   {renderList(t('suppliers'), diff.suppliers)}
                   <p className="font-semibold">{countLine(t('restoreOrderLines'), diff.orderLines)}</p>
+                  {diff.stockCounts.changed && (
+                    <p className="font-semibold" data-testid="restore-counts-line">
+                      {t('restoreCountsLine', { before: diff.stockCounts.before ?? '?', after: diff.stockCounts.after ?? '?' })}
+                    </p>
+                  )}
                   {[...diff.settings, ...diff.otherDataKeys].map(change => (
                     <p key={change.key} className="text-xs break-all">
                       {t('restoreSettingChange', {
@@ -292,8 +309,21 @@ const RestorePanel: React.FC = () => {
             </div>
           )}
 
+          {analysis.canRestore && countsLost > 0 && (
+            <div role="alert" data-testid="restore-counts-loss" className="p-4 rounded-xl bg-red-500/10 text-red-700 dark:text-red-300 ring-2 ring-red-500/50 text-sm font-semibold flex gap-3">
+              <AlertTriangleIcon className="h-6 w-6 flex-shrink-0" />
+              <span>{t('restoreCountsLoss', { count: countsLost })}</span>
+            </div>
+          )}
+
           {analysis.canRestore && (
             <div className="space-y-2">
+              {countsLost > 0 && (
+                <label className="flex items-start gap-3 min-h-[44px] cursor-pointer font-semibold text-red-700 dark:text-red-300">
+                  <input type="checkbox" className="h-5 w-5 mt-0.5 flex-shrink-0" checked={countsLossAcknowledged} onChange={e => setCountsLossAcknowledged(e.target.checked)} />
+                  <span>{t('restoreAckCountsLoss', { count: countsLost })}</span>
+                </label>
+              )}
               {analysis.requiresAcknowledgement && (
                 <label className="flex items-start gap-3 min-h-[44px] cursor-pointer font-semibold text-amber-800 dark:text-amber-300">
                   <input type="checkbox" className="h-5 w-5 mt-0.5 flex-shrink-0" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)} />
