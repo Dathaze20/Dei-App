@@ -226,8 +226,17 @@ export const translations = {
     "stockOkCounted": "Stock level is good (counted).",
     "stockCountsLabel": "verified stock counts",
     "restoreCountsLine": "Verified stock counts: {before} → {after} product(s)",
-    "restoreCountsLoss": "Warning: this backup does not have the verified stock counts saved on this device for {count} product(s). Restoring it will remove those counts. You can undo the restore afterwards.",
-    "restoreAckCountsLoss": "I understand that verified stock counts for {count} product(s) will be removed."
+    "restoreCountsLoss": "Warning: restoring this backup would remove or replace verified stock counts saved on this device for {count} product(s).",
+    "restoreAckCountsLoss": "I understand that verified stock counts for {count} product(s) will be removed or replaced.",
+    "restoreCountsRemoved": "{count} counted product(s) have no count in the backup.",
+    "restoreCountsOlder": "{count} product(s) would get an older or different count from the backup instead of the latest one here.",
+    "restoreCountsRetired": "Count history of {count} deleted product(s) would be lost.",
+    "restoreCountsUnreadable": "The verified stock counts on this device can't be read, so they can't be compared. Restoring will replace them.",
+    "restoreCountsUndo": "A safety copy of the current counts is saved first, and you can undo the restore afterwards.",
+    "restoreAckCountsUnreadable": "I understand that the unreadable stock counts on this device will be replaced.",
+    "deleteBlocked": "“{name}” was NOT deleted. {reason} Nothing was changed.",
+    "deleteBlockedUnavailable": "Its verified stock counts can't be safely kept right now (see the message at the top of the screen).",
+    "deleteBlockedWrite": "Its verified stock counts could not be saved before deleting. Try again."
   },
   es: {
     "deliBrainOfStore": "El cerebro de la tienda.",
@@ -450,8 +459,17 @@ export const translations = {
     "stockOkCounted": "Nivel de stock bueno (contado).",
     "stockCountsLabel": "conteos de stock verificados",
     "restoreCountsLine": "Conteos de stock verificados: {before} → {after} producto(s)",
-    "restoreCountsLoss": "Atención: esta copia no tiene los conteos de stock verificados de {count} producto(s) guardados en este dispositivo. Restaurarla los eliminará. Podrás deshacer la restauración después.",
-    "restoreAckCountsLoss": "Entiendo que se eliminarán los conteos verificados de {count} producto(s)."
+    "restoreCountsLoss": "Atención: restaurar esta copia eliminaría o reemplazaría conteos de stock verificados guardados en este dispositivo para {count} producto(s).",
+    "restoreAckCountsLoss": "Entiendo que se eliminarán o reemplazarán los conteos verificados de {count} producto(s).",
+    "restoreCountsRemoved": "{count} producto(s) contados no tienen conteo en la copia.",
+    "restoreCountsOlder": "{count} producto(s) recibirían un conteo más antiguo o distinto de la copia en lugar del más reciente de aquí.",
+    "restoreCountsRetired": "Se perdería el historial de conteo de {count} producto(s) eliminado(s).",
+    "restoreCountsUnreadable": "Los conteos verificados de este dispositivo no se pueden leer, así que no se pueden comparar. Restaurar los reemplazará.",
+    "restoreCountsUndo": "Primero se guarda una copia de seguridad de los conteos actuales y podrás deshacer la restauración.",
+    "restoreAckCountsUnreadable": "Entiendo que se reemplazarán los conteos ilegibles de este dispositivo.",
+    "deleteBlocked": "“{name}” NO se eliminó. {reason} No se cambió nada.",
+    "deleteBlockedUnavailable": "Sus conteos verificados no se pueden conservar de forma segura ahora (mira el mensaje arriba).",
+    "deleteBlockedWrite": "No se pudieron guardar sus conteos verificados antes de eliminarlo. Inténtalo de nuevo."
   },
   ar: {
     "deliBrainOfStore": "عقل المتجر.",
@@ -674,8 +692,17 @@ export const translations = {
     "stockOkCounted": "مستوى المخزون جيد (معدود).",
     "stockCountsLabel": "عدّ المخزون المؤكد",
     "restoreCountsLine": "عدّ المخزون المؤكد: {before} ← {after} منتج",
-    "restoreCountsLoss": "تحذير: هذه النسخة لا تحتوي على عدّ المخزون المؤكد المحفوظ على هذا الجهاز لـ {count} منتج. استعادتها ستحذف هذا العدّ. يمكنك التراجع عن الاستعادة بعد ذلك.",
-    "restoreAckCountsLoss": "أفهم أن عدّ المخزون المؤكد لـ {count} منتج سيُحذف."
+    "restoreCountsLoss": "تحذير: استعادة هذه النسخة ستحذف أو تستبدل عدّ المخزون المؤكد المحفوظ على هذا الجهاز لـ {count} منتج.",
+    "restoreAckCountsLoss": "أفهم أن عدّ المخزون المؤكد لـ {count} منتج سيُحذف أو يُستبدل.",
+    "restoreCountsRemoved": "{count} منتج معدود ليس له عدّ في النسخة.",
+    "restoreCountsOlder": "{count} منتج سيحصل على عدّ أقدم أو مختلف من النسخة بدلًا من الأحدث هنا.",
+    "restoreCountsRetired": "سيُفقد سجل العدّ لـ {count} منتج محذوف.",
+    "restoreCountsUnreadable": "تعذّرت قراءة عدّ المخزون المؤكد على هذا الجهاز، لذلك لا يمكن مقارنته. الاستعادة ستستبدله.",
+    "restoreCountsUndo": "تُحفظ نسخة أمان من العدّ الحالي أولًا، ويمكنك التراجع عن الاستعادة بعد ذلك.",
+    "restoreAckCountsUnreadable": "أفهم أن عدّ المخزون غير المقروء على هذا الجهاز سيُستبدل.",
+    "deleteBlocked": "لم يتم حذف “{name}”. {reason} لم يتغير شيء.",
+    "deleteBlockedUnavailable": "لا يمكن الاحتفاظ بعدّه المؤكد بأمان الآن (راجع الرسالة أعلى الشاشة).",
+    "deleteBlockedWrite": "تعذّر حفظ عدّه المؤكد قبل الحذف. حاول مرة أخرى."
   }
 };
 

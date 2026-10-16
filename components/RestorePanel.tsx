@@ -151,12 +151,14 @@ const RestorePanel: React.FC = () => {
   // Restoring a backup without this device's verified stock counts (e.g. any backup made before
   // stock counting existed) removes them, so that needs its own explicit acknowledgement.
   const countsLost = diff?.stockCounts.lost ?? 0;
+  const countsUnreadable = diff?.stockCounts.currentUnreadable ?? false;
+  const countsAtRisk = countsLost > 0 || countsUnreadable;
   const canSubmit =
     !!analysis?.canRestore &&
     !!review &&
     confirmed &&
     (!analysis.requiresAcknowledgement || acknowledged) &&
-    (countsLost === 0 || countsLossAcknowledged) &&
+    (!countsAtRisk || countsLossAcknowledged) &&
     !running;
 
   const countLine = (label: string, list: { before: number | null; after: number | null }) =>
@@ -309,19 +311,30 @@ const RestorePanel: React.FC = () => {
             </div>
           )}
 
-          {analysis.canRestore && countsLost > 0 && (
+          {analysis.canRestore && countsAtRisk && diff && (
             <div role="alert" data-testid="restore-counts-loss" className="p-4 rounded-xl bg-red-500/10 text-red-700 dark:text-red-300 ring-2 ring-red-500/50 text-sm font-semibold flex gap-3">
               <AlertTriangleIcon className="h-6 w-6 flex-shrink-0" />
-              <span>{t('restoreCountsLoss', { count: countsLost })}</span>
+              <div className="space-y-1">
+                {countsLost > 0 && <p>{t('restoreCountsLoss', { count: countsLost })}</p>}
+                {countsLost > 0 && (
+                  <ul className="list-disc ms-5 font-normal">
+                    {diff.stockCounts.removed > 0 && <li>{t('restoreCountsRemoved', { count: diff.stockCounts.removed })}</li>}
+                    {diff.stockCounts.replacedByOlder > 0 && <li>{t('restoreCountsOlder', { count: diff.stockCounts.replacedByOlder })}</li>}
+                    {diff.stockCounts.retiredLost > 0 && <li>{t('restoreCountsRetired', { count: diff.stockCounts.retiredLost })}</li>}
+                  </ul>
+                )}
+                {countsUnreadable && <p>{t('restoreCountsUnreadable')}</p>}
+                <p className="font-normal">{t('restoreCountsUndo')}</p>
+              </div>
             </div>
           )}
 
           {analysis.canRestore && (
             <div className="space-y-2">
-              {countsLost > 0 && (
+              {countsAtRisk && (
                 <label className="flex items-start gap-3 min-h-[44px] cursor-pointer font-semibold text-red-700 dark:text-red-300">
                   <input type="checkbox" className="h-5 w-5 mt-0.5 flex-shrink-0" checked={countsLossAcknowledged} onChange={e => setCountsLossAcknowledged(e.target.checked)} />
-                  <span>{t('restoreAckCountsLoss', { count: countsLost })}</span>
+                  <span>{countsLost > 0 ? t('restoreAckCountsLoss', { count: countsLost }) : t('restoreAckCountsUnreadable')}</span>
                 </label>
               )}
               {analysis.requiresAcknowledgement && (

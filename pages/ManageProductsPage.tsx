@@ -41,6 +41,17 @@ const ManageProductsPage: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [tagProduct, setTagProduct] = useState<Product | null>(null);
   const [localDeliName, setLocalDeliName] = useState(deliName);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDelete = (product: Product) => {
+    const result = deleteProduct(product.id);
+    if ('reason' in result) {
+      const reason = result.reason === 'counts-unavailable' ? t('deleteBlockedUnavailable') : t('deleteBlockedWrite');
+      setDeleteError(t('deleteBlocked', { name: [product.name, product.flavor].filter(Boolean).join(' '), reason }));
+    } else {
+      setDeleteError(null);
+    }
+  };
 
   useEffect(() => {
     setLocalDeliName(deliName);
@@ -142,6 +153,12 @@ const ManageProductsPage: React.FC = () => {
           </div>
         </div>
 
+        {deleteError && (
+          <p role="alert" data-testid="delete-error" className="mb-4 p-3 rounded-lg bg-red-500/10 text-red-700 dark:text-red-300 ring-1 ring-red-500/30 text-sm font-semibold">
+            {deleteError}
+          </p>
+        )}
+
         {/* Mobile Card View */}
         <motion.div className="md:hidden space-y-4" variants={listVariants} initial="hidden" animate="visible">
           {sortedProducts.map(product => {
@@ -173,7 +190,7 @@ const ManageProductsPage: React.FC = () => {
                 <div className="bg-slate-100/70 dark:bg-slate-900/50 px-4 py-2 flex justify-end gap-2">
                     <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenTagModal(product)} className="p-2 text-green-600 hover:text-green-800 bg-green-100/0 hover:bg-green-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><QrCodeIcon className="h-5 w-5" /></motion.button>
                     <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenModal(product)} className="p-2 text-blue-600 hover:text-blue-800 bg-blue-100/0 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><PencilIcon className="h-5 w-5" /></motion.button>
-                    <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => deleteProduct(product.id)} className="p-2 text-red-600 hover:text-red-800 bg-red-100/0 hover:bg-red-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
+                    <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleDelete(product)} className="p-2 text-red-600 hover:text-red-800 bg-red-100/0 hover:bg-red-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
                 </div>
               </motion.div>
             );
@@ -213,7 +230,7 @@ const ManageProductsPage: React.FC = () => {
                             <div className="flex gap-2">
                               <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenTagModal(product)} className="p-2.5 text-green-600 hover:text-green-800 hover:bg-green-100 dark:hover:bg-green-100/10 rounded-full transition-colors"><QrCodeIcon className="h-5 w-5" /></motion.button>
                               <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenModal(product)} className="p-2.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:hover:bg-blue-100/10 rounded-full transition-colors"><PencilIcon className="h-5 w-5" /></motion.button>
-                              <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => deleteProduct(product.id)} className="p-2.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:hover:bg-red-100/10 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
+                              <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleDelete(product)} className="p-2.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:hover:bg-red-100/10 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
                             </div>
                           </td>
                       </motion.tr>

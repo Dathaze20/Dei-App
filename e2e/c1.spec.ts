@@ -171,12 +171,13 @@ test.describe('verified stock counting (Classic View)', () => {
     // A real backup made before stock counting existed.
     const preC1 = (await import('fs')).readFileSync('fixtures/exports/pr1-b291176-arizona-demo.json', 'utf8');
     await checkBackup(page, preC1);
-    await expect(page.getByTestId('restore-counts-loss')).toContainText('Restoring it will remove those counts');
+    await expect(page.getByTestId('restore-counts-loss')).toContainText('would remove or replace verified stock counts saved on this device for 1 product(s)');
+    await expect(page.getByTestId('restore-counts-loss')).toContainText('1 counted product(s) have no count in the backup.');
     await expect(page.getByTestId('restore-counts-line')).toHaveText('Verified stock counts: 1 → 0 product(s)');
     await page.getByLabel(/I understand this replaces/).check();
     const restore = visible(page).button('Restore Backup');
     await expect(restore).toBeDisabled();
-    await page.getByLabel('I understand that verified stock counts for 1 product(s) will be removed.').check();
+    await page.getByLabel('I understand that verified stock counts for 1 product(s) will be removed or replaced.').check();
     await expect(restore).toBeEnabled();
     await Promise.all([page.waitForEvent('load'), restore.click()]);
     await expect(page.locator('#root header')).toBeVisible();
@@ -201,6 +202,64 @@ test('product details and the share dialog open on screen, even from a long list
   await open(page, '/order');
   await visible(page).button('Share').click();
   await expect(page.getByRole('heading', { name: /Share Order/ })).toBeInViewport();
+});
+
+test('restoring an older backup that has an older count for the same product needs the acknowledgement', async ({ page }) => {
+  await seed(page, REAL);
+  await openProduct(page, 'Caution Extreme Fruit Punch');
+  await saveCount(page, '18');
+  await expect(page.getByText('Count saved: 18 units.')).toBeVisible();
+  const backup = await exportViaUi(page); // has the count of 18
+
+  await open(page, '/');
+  await openProduct(page, 'Caution Extreme Fruit Punch');
+  await saveCount(page, '25');
+  await expect(page.getByText('Count saved: 25 units.')).toBeVisible();
+  const newer = (await dumpStorage(page))[KEY];
+
+  await checkBackup(page, backup);
+  await expect(page.getByTestId('restore-counts-loss')).toContainText(
+    '1 product(s) would get an older or different count from the backup instead of the latest one here.',
+  );
+  await page.getByLabel(/I understand this replaces/).check();
+  const restore = visible(page).button('Restore Backup');
+  await expect(restore).toBeDisabled();
+  await page.getByLabel('I understand that verified stock counts for 1 product(s) will be removed or replaced.').check();
+  await Promise.all([page.waitForEvent('load'), restore.click()]);
+  await expect(page.locator('#root header')).toBeVisible();
+  expect(JSON.parse((await dumpStorage(page))[KEY]).products.az_rx_fruitpunch_slim11_5.counts[0].units).toBe(18);
+
+  await open(page, '/manage');
+  await visible(page).button('Undo Last Restore').click();
+  await Promise.all([page.waitForEvent('load'), visible(page).button('Yes, Continue').click()]);
+  await expect(page.getByText('The last restore was undone.')).toBeVisible();
+  expect((await dumpStorage(page))[KEY]).toBe(newer);
+});
+
+test('deleting a counted product when its counts cannot be saved keeps the product and says why', async ({ page }) => {
+  await seed(page, REAL);
+  await page.getByPlaceholder(/Search all products/).fill('Monster Energy');
+  await page.getByText('Original', { exact: true }).first().click();
+  await saveCount(page, '7');
+  await expect(page.getByText('Count saved: 7 units.')).toBeVisible();
+  const before = await dumpStorage(page);
+  // From the next page load on, saving the counts fails (as when storage is full).
+  await page.addInitScript(key => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (k === key) throw new DOMException('Quota exceeded', 'QuotaExceededError');
+      return setItem.call(this, k, v);
+    };
+  }, KEY);
+  await open(page, '/manage');
+  await expect(page.getByRole('heading', { name: 'Manage Products' })).toBeVisible();
+  // The delete button of the "Monster Energy Original" card (the third action button on it).
+  const card = page.locator('div.bg-white\\/75 > div, div').filter({ hasText: /^Monster EnergyOriginal/ }).first();
+  await card.locator('button.text-red-600').first().click();
+  await expect(page.getByTestId('delete-error')).toHaveText(
+    '“Monster Energy Original” was NOT deleted. Its verified stock counts could not be saved before deleting. Try again. Nothing was changed.',
+  );
+  expect(await dumpStorage(page)).toEqual(before);
 });
 
 test.describe("Boar's Head: a plain weekly item list", () => {

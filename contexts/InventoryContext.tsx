@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback, useRef, useSyncExternalStore, ReactNode } from 'react';
 import { Product, Supplier, Order, OrderItem } from '../types';
 import { audioManager } from '../utils/audioManager';
-import { getGuardState, guardedSetItem, isKeyBlocked, loadGuarded, subscribeGuard } from '../utils/storageGuard';
+import { confirmUnchanged, getGuardState, guardedSetItem, isKeyBlocked, loadGuarded, subscribeGuard } from '../utils/storageGuard';
 import { OrderUnit, SupplierWorkflow, lineUnit, newLineUnit, resolveSupplierWorkflow } from '../utils/supplierWorkflow';
 import {
   STOCK_COUNTS_KEY,
@@ -242,7 +242,11 @@ export interface InventoryContextType {
   clearOrder: () => void;
   addProduct: (productData: Omit<Product, 'id' | 'currentStockUnits'>) => void;
   updateProduct: (productData: Product) => void;
-  deleteProduct: (productId: string) => void;
+  /**
+   * Deletes a product, first moving its verified counts to the hidden history. If that cannot be
+   * saved, or the counts cannot be read or were changed in another tab, nothing is deleted.
+   */
+  deleteProduct: (productId: string) => DeleteProductResult;
   addSupplier: (supplier: Omit<Supplier, 'id'>) => void;
   updateDeliName: (newName: string) => void;
   /** How a supplier is ordered from and whether its products are stock-counted. */
@@ -255,6 +259,8 @@ export interface InventoryContextType {
    */
   saveStockCount: (productId: string, units: number, source: 'classic' | 'confirmed-legacy') => SaveCountResult;
 }
+
+export type DeleteProductResult = { ok: true } | { ok: false; reason: 'counts-unavailable' | 'write-failed' };
 
 export type SaveCountResult =
   | { ok: true; count: StockCount }
@@ -428,15 +434,21 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     audioManager.play('add');
   }, []);
 
-  const deleteProduct = useCallback((productId: string) => {
-    // Its verified counts are kept, hidden, and can never attach to another product.
+  const deleteProduct = useCallback((productId: string): DeleteProductResult => {
+    // Its verified counts are kept, hidden, and can never attach to another product. If this
+    // page's copy of the counts is unreadable or out of date (another tab counted), deleting now
+    // could orphan or lose them, so the product is kept and the person is told why.
+    if (isKeyBlocked(STOCK_COUNTS_KEY) || !confirmUnchanged(STOCK_COUNTS_KEY)) return { ok: false, reason: 'counts-unavailable' };
     const retired = retireProductCounts(stockCountsRef.current, productId, new Date().toISOString());
-    if (retired !== stockCountsRef.current) commitStockCounts(retired);
+    if (retired !== stockCountsRef.current && !commitStockCounts(retired)) {
+      return { ok: false, reason: isKeyBlocked(STOCK_COUNTS_KEY) ? 'counts-unavailable' : 'write-failed' };
+    }
     setProducts(prev => prev.filter(p => p.id !== productId));
     // Also remove from current order if it's there
     removeFromOrder(productId);
     audioManager.play('remove');
     vibrate([100, 50, 100]);
+    return { ok: true };
   }, [removeFromOrder]);
   
   const addSupplier = useCallback((supplierData: Omit<Supplier, 'id'>) => {

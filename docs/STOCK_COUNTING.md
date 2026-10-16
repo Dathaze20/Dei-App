@@ -52,9 +52,18 @@ Same as all other saved data (see [DATA_SAFETY.md](DATA_SAFETY.md)):
 - Changed in another tab after this page loaded: this tab's save is refused ("Count NOT saved")
   and the newer counts are kept.
 - Included in Export My Data, restore snapshots, Undo and interrupted-restore recovery.
-- Restoring a backup that does not have this device's counts (any backup made before C1) shows
-  a red warning with the number of products that would lose their counts, and needs its own
-  checkbox before Restore is allowed. Undo brings the counts back.
+- Restoring a backup that would remove or replace this device's verified counts shows a red
+  warning and needs its own checkbox before Restore is allowed. It lists:
+  - counted products that have no count in the backup (for example any backup made before C1);
+  - products whose latest count here would be replaced by an older or different count from the
+    backup (a backup with a newer count is not a loss);
+  - hidden count history of deleted products that the backup does not have;
+  - or, if this device's counts cannot be read, that they cannot be compared and will be replaced.
+
+  A safety snapshot is saved first, and Undo brings the counts back.
+- Deleting a product first moves its counts to `retired`. If that cannot be saved (storage full),
+  or the counts are unreadable or were changed in another tab, the product is **not** deleted
+  and the Manage page says why. Nothing is changed.
 
 ## Supplier workflows
 

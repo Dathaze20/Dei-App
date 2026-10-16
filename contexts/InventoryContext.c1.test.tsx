@@ -160,6 +160,78 @@ describe('verified stock counts', () => {
   });
 });
 
+describe('deleting a product never loses its verified counts', () => {
+  const failCountWrites = () => {
+    const setItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key: string, value: string) {
+      if (key === KEY) throw new DOMException('Quota exceeded', 'QuotaExceededError');
+      return setItem.call(this, key, value);
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  };
+  const deleteNow = (id: string) => {
+    let result: ReturnType<InventoryContextType['deleteProduct']> | undefined;
+    act(() => {
+      result = api.deleteProduct(id);
+    });
+    return result!;
+  };
+
+  it('if the counts cannot be archived (storage full), the product is NOT deleted and nothing changes', () => {
+    seedReal();
+    mount();
+    save(ARIZONA, 18);
+    const before = dump();
+    failCountWrites();
+    expect(deleteNow(ARIZONA)).toEqual({ ok: false, reason: 'write-failed' });
+    expect(api.products.some(p => p.id === ARIZONA)).toBe(true);
+    expect(api.currentOrder.items.some(i => i.productId === ARIZONA)).toBe(true);
+    expect(api.getStock(product(ARIZONA))).toMatchObject({ state: 'verified', units: 18 });
+    expect(dump()).toEqual(before);
+  });
+
+  it('if the saved counts are unreadable, no product can be deleted (its counts might be in there)', () => {
+    const damaged = '{"schemaVersion":1,"products":{"az_rx_fruitpunch_slim11_5":{"counts":[{"units":"lots"}]}}}';
+    seedReal({ [KEY]: damaged });
+    mount();
+    const before = dump();
+    expect(deleteNow(ARIZONA)).toEqual({ ok: false, reason: 'counts-unavailable' });
+    expect(deleteNow('bh_turkey')).toEqual({ ok: false, reason: 'counts-unavailable' });
+    expect(api.products).toHaveLength(141);
+    expect(dump()).toEqual(before);
+  });
+
+  it('if another tab counted after this page loaded, the product is NOT deleted and that count survives', () => {
+    seedReal();
+    mount();
+    const otherTab = JSON.stringify({ schemaVersion: 1, products: { [ARIZONA]: { counts: [{ units: 5, countedAt: '2026-10-15T08:00:00.000Z', source: 'classic', unitsPerCaseAtCount: 24 }] } } });
+    localStorage.setItem(KEY, otherTab);
+    const productsBefore = localStorage.getItem('inventory_products');
+    expect(deleteNow(ARIZONA)).toEqual({ ok: false, reason: 'counts-unavailable' });
+    expect(api.products.some(p => p.id === ARIZONA)).toBe(true);
+    expect(localStorage.getItem(KEY)).toBe(otherTab);
+    expect(localStorage.getItem('inventory_products')).toBe(productsBefore);
+    expect(getGuardState().blocked).toEqual([expect.objectContaining({ key: KEY, status: 'changed-elsewhere' })]);
+  });
+
+  it('a product without counts deletes normally and no counts key is created', () => {
+    seedReal();
+    mount();
+    expect(deleteNow('bh_turkey')).toEqual({ ok: true });
+    expect(api.products.some(p => p.id === 'bh_turkey')).toBe(false);
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it('a counted product deletes normally when the archive saves', () => {
+    seedReal();
+    mount();
+    save(ARIZONA, 18);
+    expect(deleteNow(ARIZONA)).toEqual({ ok: true });
+    expect(JSON.parse(localStorage.getItem(KEY)!).retired[0]).toMatchObject({ productId: ARIZONA });
+    expect(api.currentOrder.items.some(i => i.productId === ARIZONA)).toBe(false);
+  });
+});
+
 describe("Boar's Head item ordering", () => {
   it('new Boar\'s Head lines are items; other suppliers keep the pre-C1 case line shape', () => {
     seedReal({ inventory_currentOrder: JSON.stringify({ items: [], createdAt: '2026-10-15T08:00:00.000Z' }) });

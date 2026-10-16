@@ -623,18 +623,18 @@ describe('C1 verified stock counts in backups', () => {
 
   it('a pre-C1 backup reports exactly how many counted products would lose their counts', () => {
     const diff = diffRestore(withCounts(), REAL);
-    expect(diff.stockCounts).toEqual({ before: 2, after: 0, lost: 2, changed: true });
+    expect(diff.stockCounts).toEqual({ before: 2, after: 0, lost: 2, removed: 2, replacedByOlder: 0, retiredLost: 0, currentUnreadable: false, changed: true });
     // The counts are not dumped as raw text among other keys.
     expect(diff.otherDataKeys).toEqual([]);
   });
 
   it('a backup with the same counts loses nothing', () => {
-    expect(diffRestore(withCounts(), withCounts()).stockCounts).toEqual({ before: 2, after: 2, lost: 0, changed: false });
+    expect(diffRestore(withCounts(), withCounts()).stockCounts).toEqual({ before: 2, after: 2, lost: 0, removed: 0, replacedByOlder: 0, retiredLost: 0, currentUnreadable: false, changed: false });
   });
 
   it('a device without counts loses nothing from any backup', () => {
     expect(diffRestore(REAL, REAL).stockCounts.lost).toBe(0);
-    expect(diffRestore(REAL, withCounts()).stockCounts).toEqual({ before: 0, after: 2, lost: 0, changed: true });
+    expect(diffRestore(REAL, withCounts()).stockCounts).toEqual({ before: 0, after: 2, lost: 0, removed: 0, replacedByOlder: 0, retiredLost: 0, currentUnreadable: false, changed: true });
   });
 
   it('export → restore keeps counts byte-for-byte, and the backup verifies', async () => {
@@ -707,5 +707,57 @@ describe('C1 verified stock counts in backups', () => {
       expect((await engine.restore(analysis.target)).status).toBe('restored');
       expect(readDataKeys(storage)).toEqual(analysis.target);
     }
+  });
+});
+
+describe('C1 restore preview: same-product count changes and count history', () => {
+  const id = realProducts[100].id;
+  const count = (units: number, countedAt: string) => ({ units, countedAt, source: 'classic', unitsPerCaseAtCount: 24 });
+  const doc = (counts: ReturnType<typeof count>[], retired: unknown[] = []) =>
+    JSON.stringify({ schemaVersion: 1, products: { [id]: { counts } }, ...(retired.length ? { retired } : {}) });
+  const diffCounts = (device: string, backup: string | undefined) =>
+    diffRestore({ ...REAL, inventory_stockCounts: device }, backup === undefined ? REAL : { ...REAL, inventory_stockCounts: backup }).stockCounts;
+  const newer = count(25, '2026-10-16T09:00:00.000Z');
+  const older = count(18, '2026-10-15T09:00:00.000Z');
+
+  it('a backup with an OLDER count for the same product is a loss that needs acknowledgement', () => {
+    expect(diffCounts(doc([newer, older]), doc([older]))).toMatchObject({ lost: 1, removed: 0, replacedByOlder: 1, before: 1, after: 1 });
+  });
+
+  it('a different count recorded at the same time also counts as a replacement', () => {
+    expect(diffCounts(doc([newer]), doc([{ ...newer, units: 99 }]))).toMatchObject({ lost: 1, replacedByOlder: 1 });
+  });
+
+  it('a backup with a NEWER count for the same product is not a loss', () => {
+    expect(diffCounts(doc([older]), doc([newer, older]))).toMatchObject({ lost: 0, replacedByOlder: 0, changed: true });
+  });
+
+  it('the same latest count with a different earlier history is not a loss', () => {
+    expect(diffCounts(doc([newer, older]), doc([newer]))).toMatchObject({ lost: 0 });
+  });
+
+  it('losing the hidden count history of a deleted product is a loss', () => {
+    const retired = [{ productId: 'prod_deleted', retiredAt: '2026-10-16T10:00:00.000Z', counts: [older] }];
+    expect(diffCounts(doc([newer], retired), doc([newer]))).toMatchObject({ lost: 1, retiredLost: 1 });
+    expect(diffCounts(doc([newer], retired), doc([newer], retired))).toMatchObject({ lost: 0 });
+  });
+
+  it('unreadable counts on this device cannot be compared, so the restore must be acknowledged', () => {
+    expect(diffCounts('{"schemaVersion":1,"products":{"x":{"counts":[{"units":"many"}]}}}', doc([older]))).toMatchObject({
+      currentUnreadable: true,
+      before: null,
+      lost: 0,
+    });
+  });
+
+  it('an explicitly acknowledged restore of older counts still restores them exactly, and Undo returns the newer ones', async () => {
+    const device = doc([newer, older]);
+    const backup = doc([older]);
+    const { storage, engine } = setup({ ...REAL, inventory_stockCounts: device }, false);
+    expect((await engine.restore({ ...REAL, inventory_stockCounts: backup })).status).toBe('restored');
+    expect(readDataKeys(storage).inventory_stockCounts).toBe(backup);
+    resetGuardForTests();
+    expect((await engine.undoLastRestore()).status).toBe('restored');
+    expect(readDataKeys(storage).inventory_stockCounts).toBe(device);
   });
 });

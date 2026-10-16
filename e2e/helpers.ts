@@ -68,7 +68,7 @@ export const checkBackup = async (page: Page, text: string, name = 'backup.json'
 export const confirmRestore = async (page: Page) => {
   await page.getByLabel(/I understand this replaces/).check();
   // Shown only when the backup lacks verified stock counts saved on this device (C1).
-  const countsLoss = page.getByLabel(/verified stock counts for \d+ product\(s\) will be removed/);
+  const countsLoss = page.getByLabel(/verified stock counts for \d+ product\(s\) will be removed or replaced|unreadable stock counts on this device will be replaced/);
   if (await countsLoss.count()) await countsLoss.check();
   await Promise.all([page.waitForEvent('load'), visible(page).button('Restore Backup').click()]);
   await expect(page.locator('#root header')).toBeVisible();
