@@ -8,6 +8,7 @@ import { readFileSync } from 'fs';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import useInventory from '../hooks/useInventory';
+import { CountSource } from '../utils/stockCounts';
 import { getGuardState, resetGuardForTests } from '../utils/storageGuard';
 import { InventoryContextType, InventoryProvider, SaveCountResult } from './InventoryContext';
 
@@ -26,7 +27,7 @@ const seedReal = (extra: Record<string, string> = {}) => {
 };
 const dump = () => Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]));
 const product = (id: string) => api.products.find(p => p.id === id)!;
-const save = (id: string, units: number, source: 'classic' | 'confirmed-legacy' = 'classic') => {
+const save = (id: string, units: number, source: CountSource = 'classic') => {
   let result: SaveCountResult | undefined;
   act(() => {
     result = api.saveStockCount(id, units, source);
@@ -275,5 +276,33 @@ describe("Boar's Head item ordering", () => {
     const before = api.currentOrder.items;
     act(() => api.convertOrderLineToItems(ARIZONA));
     expect(api.currentOrder.items).toEqual(before);
+  });
+});
+
+describe("C2.1: the reserved 'counter' source", () => {
+  it('saves like any count, with source "counter", and survives a reload', () => {
+    seedReal();
+    mount();
+    const productsBefore = localStorage.getItem('inventory_products');
+    expect(save(ARIZONA, 12, 'counter')).toMatchObject({ ok: true, count: { units: 12, source: 'counter', unitsPerCaseAtCount: 24 } });
+    expect(save(ARIZONA, 0, 'counter')).toMatchObject({ ok: true, count: { units: 0, source: 'counter' } });
+    expect(localStorage.getItem('inventory_products')).toBe(productsBefore);
+    cleanup();
+    resetGuardForTests();
+    mount();
+    expect(api.getStock(product(ARIZONA))).toMatchObject({ state: 'verified', units: 0, source: 'counter', previous: { units: 12, source: 'counter' } });
+  });
+
+  it('keeps every C1 protection: whole numbers only, no Boar\'s Head, no write when blocked', () => {
+    seedReal();
+    mount();
+    expect(save(ARIZONA, 1.5, 'counter')).toEqual({ ok: false, reason: 'invalid' });
+    expect(save(ARIZONA, 100_000, 'counter')).toEqual({ ok: false, reason: 'invalid' });
+    expect(save('bh_turkey', 1, 'counter')).toEqual({ ok: false, reason: 'not-tracked' });
+    expect(localStorage.getItem(KEY)).toBeNull();
+    const otherTab = JSON.stringify({ schemaVersion: 1, products: {} });
+    localStorage.setItem(KEY, otherTab);
+    expect(save(ARIZONA, 4, 'counter')).toEqual({ ok: false, reason: 'blocked' });
+    expect(localStorage.getItem(KEY)).toBe(otherTab);
   });
 });
