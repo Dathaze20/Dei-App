@@ -8,6 +8,7 @@ import SupplierForm from '../components/SupplierForm';
 import ShelfTagModal from '../components/ShelfTagModal';
 import DataExportPanel from '../components/DataExportPanel';
 import RestorePanel from '../components/RestorePanel';
+import AppUpdatePanel from '../components/AppUpdatePanel';
 import StockLabel from '../components/StockLabel';
 import AnimatedPage from '../components/AnimatedPage';
 import { motion } from 'framer-motion';
@@ -132,6 +133,8 @@ const ManageProductsPage: React.FC = () => {
             </div>
           </div>
       </motion.div>
+
+      <AppUpdatePanel />
 
       <DataExportPanel />
 

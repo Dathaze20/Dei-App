@@ -1,0 +1,161 @@
+name: Android release APK (manual)
+
+# Builds the signed DeliOrderNYC APK from `main`. Runs ONLY when the owner presses "Run workflow";
+# never on push, pull request or schedule. See docs/ANDROID.md.
+#
+# - Without "create_draft_release" it only builds, verifies and uploads the APK as a workflow
+#   artifact (kept 14 days) for review.
+# - With it, the APK is attached to a DRAFT GitHub Release. Drafts are invisible to the in-app
+#   updater. Nothing reaches the phone until the owner opens the draft and presses
+#   "Publish release" on GitHub.
+#
+# Signing uses repository secrets ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD, and the
+# repository variable ANDROID_SIGNING_CERT_SHA256 (the key's fingerprint). If any is missing the
+# run stops: it never creates or uses another key.
+on:
+  workflow_dispatch:
+    inputs:
+      create_draft_release:
+        description: 'Also attach the APK to a draft GitHub Release (publish it yourself afterwards)'
+        type: boolean
+        default: false
+      release_notes:
+        description: 'Release notes shown in the app (plain text)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and verify the signed APK
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Check the signing setup exists
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FINGERPRINT: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: |
+          missing=""
+          [ -n "$KEYSTORE" ] || missing="$missing ANDROID_KEYSTORE_BASE64(secret)"
+          [ -n "$PASSWORD" ] || missing="$missing ANDROID_KEYSTORE_PASSWORD(secret)"
+          [ -n "$FINGERPRINT" ] || missing="$missing ANDROID_SIGNING_CERT_SHA256(variable)"
+          if [ -n "$missing" ]; then echo "::error::Signing is not set up. Missing:$missing. See docs/ANDROID.md."; exit 1; fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Android identity and version consistency
+        run: node scripts/check-android-identity.mjs "v${{ steps.version.outputs.version }}"
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build the web app and scan it for secrets
+        run: npm run build
+        env:
+          SECRET_SCAN_CANARY: ci-canary-not-a-real-key-d05c6e
+
+      - name: Copy the web app into the Android project
+        run: npx cap sync android
+
+      - name: Build the signed APK and run Android lint
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          DELI_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          DELI_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          DELI_KEY_ALIAS: deliordernyc
+        run: |
+          export DELI_KEYSTORE_FILE="$RUNNER_TEMP/deliordernyc-release.p12"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$DELI_KEYSTORE_FILE"
+          trap 'rm -f "$DELI_KEYSTORE_FILE"' EXIT
+          ./gradlew --no-daemon assembleRelease lintRelease
+
+      - name: Verify signature, identity and contents
+        env:
+          FINGERPRINT: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$TOOLS/apksigner" verify --print-certs "$APK" > certs.txt
+          actual="$(grep -m1 'certificate SHA-256 digest' certs.txt | awk -F': ' '{print $2}' | tr -d ': ' | tr 'A-F' 'a-f')"
+          expected="$(printf '%s' "$FINGERPRINT" | tr -d ': ' | tr 'A-F' 'a-f')"
+          if [ "$actual" != "$expected" ]; then echo "::error::The APK is not signed with the registered key (got $actual)."; exit 1; fi
+          "$TOOLS/aapt2" dump badging "$APK" > badging.txt
+          node scripts/check-android-identity.mjs "v$VERSION" badging.txt
+          unzip -l "$APK" | grep -q 'assets/public/index.html'
+          mkdir -p out
+          cp "$APK" "out/DeliOrderNYC-$VERSION.apk"
+          (cd out && sha256sum "DeliOrderNYC-$VERSION.apk" | tee "DeliOrderNYC-$VERSION.apk.sha256")
+
+      - name: Upload the APK for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeliOrderNYC-${{ steps.version.outputs.version }}
+          path: out/
+          retention-days: 14
+
+  draft-release:
+    name: Attach to a draft GitHub Release (not published)
+    needs: build
+    if: inputs.create_draft_release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the verified APK
+        uses: actions/download-artifact@v4
+        with:
+          name: DeliOrderNYC-${{ needs.build.outputs.version }}
+          path: out
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          NOTES: ${{ inputs.release_notes }}
+        run: |
+          TAG="v$VERSION"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::error::Release $TAG already exists. Raise the version in package.json first."; exit 1
+          fi
+          printf '%s\n' "${NOTES:-DeliOrderNYC $VERSION}" > notes.txt
+          gh release create "$TAG" "out/DeliOrderNYC-$VERSION.apk" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "DeliOrderNYC $VERSION" --notes-file notes.txt --draft
+          echo "Draft release $TAG created. It is NOT visible to the app until you publish it on GitHub."

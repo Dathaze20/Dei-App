@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
 import { ArrowDownTrayIcon, CheckCircleIcon, ClipboardListIcon, ShareIcon, AlertTriangleIcon } from './shared/icons';
+import { saveTextFile } from '../utils/fileDownload';
 import {
   DataExport,
   StorageClassification,
@@ -88,21 +89,12 @@ const DataExportPanel: React.FC = () => {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!result) return;
-    try {
-      const url = URL.createObjectURL(new Blob([result.text], { type: 'application/json' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = result.fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
-      setStatus(t('exportDownloadStarted', { fileName: result.fileName }));
-    } catch (e) {
-      setStatus(t('exportFailed', { message: e instanceof Error ? e.message : String(e) }));
-    }
+    const outcome = await saveTextFile(result.fileName, result.text);
+    if (outcome === 'started') setStatus(t('exportDownloadStarted', { fileName: result.fileName }));
+    else if (outcome === 'saved') setStatus(t('exportSaved', { fileName: result.fileName }));
+    else if (outcome === 'failed') setStatus(t('exportFailed', { message: t('exportSaveBlocked') }));
   };
 
   const shareFile = (): File | null => {
