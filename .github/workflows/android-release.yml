@@ -68,6 +68,43 @@ jobs:
           [ -n "$FINGERPRINT" ] || missing="$missing ANDROID_SIGNING_CERT_SHA256(variable)"
           if [ -n "$missing" ]; then echo "::error::Signing is not set up. Missing:$missing. See docs/ANDROID.md."; exit 1; fi
 
+      # Opens the keystore before anything is built and says exactly what is wrong, without
+      # printing any secret: only the file size, the names of the keys and public fingerprints.
+      - name: Check the signing key can be used
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FINGERPRINT: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+          KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS || 'deliordernyc' }}
+        run: |
+          KS="$RUNNER_TEMP/check.p12"
+          trap 'rm -f "$KS" list.txt err.txt' EXIT
+          fail() { echo "::error::$1"; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$KS" 2>/dev/null \
+            || fail "ANDROID_KEYSTORE_BASE64 is not valid base64 text. Copy the whole content of the -base64.txt file again."
+          echo "Keystore file decoded: $(stat -c %s "$KS") bytes."
+          if ! keytool -list -keystore "$KS" -storepass:env KS_PASSWORD > list.txt 2> err.txt; then
+            reason="$(cat list.txt err.txt | grep -v '^Picked up' | grep -m1 -i 'error' | head -c 200)"
+            if printf '%s' "$reason" | grep -qi 'password'; then
+              fail "ANDROID_KEYSTORE_PASSWORD does not open the keystore ($reason). Re-enter the password secret, with no spaces before or after."
+            fi
+            fail "The keystore file is damaged or incomplete ($reason). The ANDROID_KEYSTORE_BASE64 secret was probably not copied completely."
+          fi
+          aliases="$(grep -i 'PrivateKeyEntry' list.txt | cut -d, -f1 | tr '\n' ' ')"
+          echo "Keys found in the keystore: ${aliases:-none}"
+          [ -n "$aliases" ] || fail "The keystore contains no private key."
+          wanted="$(printf '%s' "$KEY_ALIAS" | tr 'A-Z' 'a-z')"
+          printf '%s\n' $aliases | grep -qx "$wanted" \
+            || fail "There is no key named '$KEY_ALIAS'. Add the repository variable ANDROID_KEY_ALIAS with one of: $aliases"
+          keytool -certreq -alias "$wanted" -keystore "$KS" -storepass:env KS_PASSWORD -keypass:env KS_PASSWORD > /dev/null 2>&1 \
+            || fail "The key '$wanted' has a different password from the keystore. Create the key again with one password (docs/ANDROID.md)."
+          actual="$(keytool -list -v -alias "$wanted" -keystore "$KS" -storepass:env KS_PASSWORD | grep -m1 'SHA256:' | sed 's/.*SHA256: *//' | tr -d ': ' | tr 'A-F' 'a-f')"
+          expected="$(printf '%s' "$FINGERPRINT" | sed 's/^SHA256: *//I' | tr -d ': ' | tr 'A-F' 'a-f')"
+          echo "Key fingerprint (public): $actual"
+          [ "$actual" = "$expected" ] \
+            || fail "ANDROID_SIGNING_CERT_SHA256 does not match this key. Set the variable to the fingerprint shown above if this is your key."
+          echo "Signing key OK."
+
       - name: Install dependencies
         run: npm ci
 
@@ -98,10 +135,10 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           DELI_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           DELI_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          DELI_KEY_ALIAS: deliordernyc
+          DELI_KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS || 'deliordernyc' }}
         run: |
           export DELI_KEYSTORE_FILE="$RUNNER_TEMP/deliordernyc-release.p12"
-          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$DELI_KEYSTORE_FILE"
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$DELI_KEYSTORE_FILE"
           trap 'rm -f "$DELI_KEYSTORE_FILE"' EXIT
           ./gradlew --no-daemon assembleRelease lintRelease
 
@@ -114,7 +151,7 @@ jobs:
           TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           "$TOOLS/apksigner" verify --print-certs "$APK" > certs.txt
           actual="$(grep -m1 'certificate SHA-256 digest' certs.txt | awk -F': ' '{print $2}' | tr -d ': ' | tr 'A-F' 'a-f')"
-          expected="$(printf '%s' "$FINGERPRINT" | tr -d ': ' | tr 'A-F' 'a-f')"
+          expected="$(printf '%s' "$FINGERPRINT" | sed 's/^SHA256: *//I' | tr -d ': ' | tr 'A-F' 'a-f')"
           if [ "$actual" != "$expected" ]; then echo "::error::The APK is not signed with the registered key (got $actual)."; exit 1; fi
           "$TOOLS/aapt2" dump badging "$APK" > badging.txt
           node scripts/check-android-identity.mjs "v$VERSION" badging.txt
