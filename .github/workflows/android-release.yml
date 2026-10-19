@@ -150,9 +150,16 @@ jobs:
           APK=android/app/build/outputs/apk/release/app-release.apk
           TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           "$TOOLS/apksigner" verify --print-certs "$APK" > certs.txt
-          actual="$(grep -m1 'certificate SHA-256 digest' certs.txt | awk -F': ' '{print $2}' | tr -d ': ' | tr 'A-F' 'a-f')"
+          # apksigner prints "Signer #1 certificate SHA-256 digest: <hex>" (older) or
+          # "Signer #1: certificate SHA-256 digest: <hex>" (newer); take the hex after the label.
+          actual="$(grep -m1 -i 'certificate SHA-256 digest:' certs.txt | sed -E 's/.*certificate SHA-256 digest:[[:space:]]*//I' | tr -d ': \r' | tr 'A-F' 'a-f')"
           expected="$(printf '%s' "$FINGERPRINT" | sed 's/^SHA256: *//I' | tr -d ': ' | tr 'A-F' 'a-f')"
+          printf '%s' "$actual" | grep -Eqx '[0-9a-f]{64}' \
+            || { echo "::error::Could not read the APK's certificate fingerprint from apksigner (got '$actual')."; exit 1; }
+          printf '%s' "$expected" | grep -Eqx '[0-9a-f]{64}' \
+            || { echo "::error::ANDROID_SIGNING_CERT_SHA256 is not a 64-character SHA-256 fingerprint."; exit 1; }
           if [ "$actual" != "$expected" ]; then echo "::error::The APK is not signed with the registered key (got $actual)."; exit 1; fi
+          echo "APK signed with the registered key: $actual"
           "$TOOLS/aapt2" dump badging "$APK" > badging.txt
           node scripts/check-android-identity.mjs "v$VERSION" badging.txt
           unzip -l "$APK" | grep -q 'assets/public/index.html'
