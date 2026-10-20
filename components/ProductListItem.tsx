@@ -5,6 +5,7 @@ import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
 import useInventory from '../hooks/useInventory';
 import StockLabel from './StockLabel';
+import ProductThumb from './ProductThumb';
 
 interface ProductListItemProps {
   product: Product;
@@ -32,30 +33,28 @@ const ProductListItem: React.FC<ProductListItemProps> = ({
   const { t } = useTranslation();
   const { getWorkflow } = useInventory();
   const ordersItems = getWorkflow(product.supplierId).orderStyle === 'items';
+  // One compact row: picture, name, flavor and stock on the left; quantity controls on the right.
+  // When the screen is narrow or the text is large, the controls move under the name instead of
+  // pushing the row wider than the screen. Every button stays at least 44x44.
   return (
     <motion.div 
-      className="flex items-center gap-4 py-4 px-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 px-1 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg"
       variants={itemVariants}
-      whileHover={{ scale: 1.02 }}
       layout
+      data-testid="product-row"
     >
-      <motion.img
-        src={product.imageUrl || 'https://placehold.co/100x100/e2e8f0/4a5568?text=N/A'}
-        alt={`${product.name} ${product.flavor}`}
-        className="w-20 h-20 object-cover rounded-lg flex-shrink-0 bg-slate-200 cursor-pointer"
-        loading="lazy"
-        onClick={() => onSelect(product)}
-        whileHover={{ scale: 1.05 }}
-      />
-      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelect(product)}>
-        <p className="font-bold text-lg text-slate-800 dark:text-slate-100 truncate">{product.name}</p>
-        <p className="text-sm text-brand-muted">{product.flavor}</p>
-        <div className="flex items-center gap-2 mt-1">
-          <StockLabel product={product} />
+      <div className="flex min-w-0 flex-1 basis-40 items-center gap-3">
+        <ProductThumb product={product} className="w-14 h-14 rounded-lg" onClick={() => onSelect(product)} />
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelect(product)}>
+          <p dir="auto" className="rtl:text-right truncate text-[0.9375rem] leading-snug font-bold text-slate-800 dark:text-slate-100">{product.name}</p>
+          <p dir="auto" className="rtl:text-right line-clamp-2 break-words text-sm leading-snug text-slate-600 dark:text-slate-300">{product.flavor}</p>
+          <div className="flex items-center gap-2 mt-0.5 text-xs">
+            <StockLabel product={product} />
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="ms-auto flex items-center gap-2 flex-shrink-0">
         <AnimatePresence mode="wait">
           {isInCart ? (
             <motion.div
@@ -63,7 +62,7 @@ const ProductListItem: React.FC<ProductListItemProps> = ({
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.5 }}
-              className="flex items-center gap-2 text-green-600 dark:text-green-400 font-semibold text-sm p-3 bg-green-100 dark:bg-green-900/50 rounded-xl"
+              className="flex min-h-11 items-center gap-1.5 text-green-700 dark:text-green-400 font-semibold text-sm px-3 bg-green-100 dark:bg-green-900/50 rounded-xl"
             >
               <CheckCircleIcon className="h-5 w-5" />
               <span>{t('inOrder')}</span>
@@ -76,20 +75,20 @@ const ProductListItem: React.FC<ProductListItemProps> = ({
               exit={{ opacity: 0, scale: 0.5 }}
               className="flex items-center gap-2"
             >
-              <div className="flex items-center rounded-xl border border-slate-300 dark:border-slate-600">
+              <div className="flex items-center rounded-xl border border-slate-300 dark:border-slate-600" dir="ltr">
                 <motion.button
                   onClick={() => onQuantityChange(product.id, orderQuantity - 1)}
-                  className="p-3 rounded-l-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-l-xl transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
                   aria-label={t('decreaseQuantity')}
                   disabled={orderQuantity <= 1}
                   whileTap={{ scale: 0.9 }}
                 >
                   <MinusIcon className="h-4 w-4" />
                 </motion.button>
-                <span className="w-10 text-center font-bold text-md select-none">{orderQuantity}</span>
+                <span className="min-w-7 text-center font-bold select-none">{orderQuantity}</span>
                 <motion.button
                   onClick={() => onQuantityChange(product.id, orderQuantity + 1)}
-                  className="p-3 rounded-r-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-r-xl transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
                   aria-label={t('increaseQuantity')}
                   whileTap={{ scale: 0.9 }}
                 >
@@ -98,9 +97,8 @@ const ProductListItem: React.FC<ProductListItemProps> = ({
               </div>
               <motion.button
                 onClick={() => onAddToOrder(product.id)}
-                className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold p-3 rounded-xl transition-colors shadow-lg shadow-brand-primary/20"
+                className="inline-flex h-11 w-11 items-center justify-center bg-brand-primary hover:bg-brand-primary-hover text-white font-bold rounded-xl transition-colors shadow-md shadow-brand-primary/20"
                 aria-label={ordersItems ? t('addItemsAria', { quantity: orderQuantity }) : t('addToOrderAria', { quantity: orderQuantity })}
-                whileHover={{ scale: 1.1, y: -2, boxShadow: "0px 8px 15px rgba(79, 70, 229, 0.3)" }}
                 whileTap={{ scale: 0.95 }}
               >
                 <PlusIcon className="h-5 w-5" />

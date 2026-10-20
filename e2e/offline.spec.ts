@@ -73,8 +73,9 @@ test.describe('works without internet (production build)', () => {
 
   test('product rows and supplier chips are styled', async ({ page }) => {
     await seed(page, {});
-    const row = page.locator('main img').first(); // the first product row's picture
-    await expect(row).toHaveCSS('width', '80px'); // w-20
+    // The first product row's picture (offline, the tidy placeholder is shown in its place).
+    const row = page.getByTestId('product-row').first().locator('img, [data-testid="product-thumb-placeholder"]').first();
+    await expect(row).toHaveCSS('width', '56px'); // w-14 (compact rows since C2.2a)
     await expect(row).toHaveCSS('border-radius', '8px'); // rounded-lg
     // The selected supplier chip (the first one, on a fresh device).
     const active = page.locator('main .lg\\:hidden button.rounded-full').first();

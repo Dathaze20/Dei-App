@@ -8,6 +8,7 @@ import Modal from '../components/Modal';
 import SupplierForm from '../components/SupplierForm';
 import ProductListItem from '../components/ProductListItem';
 import ProductGroup from '../components/ProductGroup';
+import { startsCollapsed } from '../utils/productGrouping';
 import AnimatedPage from '../components/AnimatedPage';
 import { motion } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
@@ -213,7 +214,7 @@ const HomePage: React.FC = () => {
         </aside>
 
         <div className="flex-1 min-w-0">
-            <div className="flex gap-2 mb-4 items-center sticky top-24 md:top-[92px] z-30 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-md -mx-4 px-4 py-2 sm:mx-0 sm:px-0">
+            <div className="flex gap-2 mb-2 items-center sticky top-below-header z-30 bg-slate-100 dark:bg-slate-950 -mx-3 px-3 py-2 sm:mx-0 sm:px-0">
                 <motion.input
                     type="text"
                     value={searchQuery}
@@ -226,13 +227,14 @@ const HomePage: React.FC = () => {
                         }
                     }}
                     placeholder={t('searchPlaceholder')}
-                    className="w-full px-4 py-3 border-none ring-1 ring-slate-300 dark:ring-slate-700 rounded-lg bg-white/50 dark:bg-slate-800/50 focus:ring-2 focus:ring-brand-primary focus:outline-none transition-all duration-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-sm"
+                    className="w-full min-w-0 min-h-11 px-4 py-2 border-none ring-1 ring-slate-300 dark:ring-slate-700 rounded-lg bg-white/50 dark:bg-slate-800/50 focus:ring-2 focus:ring-brand-primary focus:outline-none transition-all duration-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-sm"
                     layoutId="search-bar"
                 />
             </div>
             
-            <div className="lg:hidden mb-6">
-                <div className="flex items-center gap-2 pb-2 -mx-4 px-4 overflow-x-auto">
+            <div className="lg:hidden mb-3">
+                {/* Supplier capsules scroll sideways inside their own strip; the page itself never does. */}
+                <div className="flex items-center gap-2 py-1 -mx-3 px-3 overflow-x-auto overscroll-x-contain [scrollbar-width:none]" data-testid="supplier-capsules">
                     {sortedSuppliers.map(supplier => (
                         <motion.button
                           key={supplier.id}
@@ -240,12 +242,11 @@ const HomePage: React.FC = () => {
                               setSelectedSupplierId(supplier.id);
                               setSearchQuery('');
                           }}
-                          className={`flex-shrink-0 px-4 py-2 rounded-full font-semibold text-sm transition-colors transform active:scale-95 ${
+                          className={`flex-shrink-0 min-h-11 px-4 rounded-full font-semibold text-sm whitespace-nowrap transition-colors transform active:scale-95 ${
                             selectedSupplierId === supplier.id && !searchQuery
                               ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/30'
                               : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-700'
                           }`}
-                          whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                         >
                           {supplier.name}
@@ -253,8 +254,8 @@ const HomePage: React.FC = () => {
                     ))}
                     <motion.button
                         onClick={() => setSupplierModalOpen(true)}
-                        className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                        whileHover={{ scale: 1.1 }}
+                        className="flex-shrink-0 flex items-center justify-center h-11 w-11 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                        aria-label={t('newSupplier')}
                         whileTap={{ scale: 0.9 }}
                     >
                         <PlusIcon className="h-5 w-5" />
@@ -268,17 +269,18 @@ const HomePage: React.FC = () => {
             >
               {groupedProducts ? (
                 <motion.div 
-                  className="p-2 sm:p-3"
+                  className="p-1.5 sm:p-3"
                   variants={listVariants}
                   initial="hidden"
                   animate="visible"
                 >
-                  {Object.entries(groupedProducts).map(([groupName, productsInGroup], index) => (
+                  {Object.entries(groupedProducts).map(([groupName, productsInGroup], index, all) => (
                     <ProductGroup 
-                      key={groupName}
+                      key={`${selectedSupplierId}:${groupName}`}
                       title={groupName}
                       count={productsInGroup.length}
                       color={groupColors[index % groupColors.length]}
+                      defaultOpen={!startsCollapsed({ products: productsInGroup }, all.length)}
                     >
                        {renderProductListItems(productsInGroup)}
                     </ProductGroup>

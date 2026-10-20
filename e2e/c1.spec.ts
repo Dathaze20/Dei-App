@@ -253,9 +253,10 @@ test('deleting a counted product when its counts cannot be saved keeps the produ
   }, KEY);
   await open(page, '/manage');
   await expect(page.getByRole('heading', { name: 'Manage Products' })).toBeVisible();
-  // The delete button of the "Monster Energy Original" card (the third action button on it).
-  const card = page.locator('div.bg-white\\/75 > div, div').filter({ hasText: /^Monster EnergyOriginal/ }).first();
-  await card.locator('button.text-red-600').first().click();
+  // The delete button of "Monster Energy Original", in the Monster Energy section (closed at first).
+  await page.getByRole('button', { name: /^Monster Energy\s*\d+$/ }).click();
+  const row = page.getByTestId('manage-product').filter({ hasText: 'Monster Energy' }).filter({ hasText: 'Original' });
+  await row.getByRole('button', { name: 'Delete product' }).click();
   await expect(page.getByTestId('delete-error')).toHaveText(
     '“Monster Energy Original” was NOT deleted. Its verified stock counts could not be saved before deleting. Try again. Nothing was changed.',
   );

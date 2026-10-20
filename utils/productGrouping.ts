@@ -115,5 +115,5 @@ export const groupSupplierProducts = (
 export const LARGE_GROUP_SIZE = 12;
 
 /** Large groups start collapsed so the list stays short, unless the group is the only one. */
-export const startsCollapsed = (group: ProductGroup, groupCount: number): boolean =>
+export const startsCollapsed = (group: Pick<ProductGroup, 'products'>, groupCount: number): boolean =>
   groupCount > 1 && group.products.length > LARGE_GROUP_SIZE;
