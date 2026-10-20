@@ -64,3 +64,52 @@
     top: calc(var(--safe-top) + var(--header-h));
   }
 }
+
+/* --- Counter screen look (C2.2c/d) -------------------------------------------------------------
+   While the Counter screen is open, <html> has the class "counter-ui" (CounterShell). Panels and
+   dialogs shared with Classic View (backup, restore, updates, shelf tags) then use the Counter's
+   cyan/teal accents and solid surfaces instead of Classic's indigo and frosted glass. Classic View
+   is unchanged. */
+html.counter-ui {
+  --brand-primary: 8 145 178; /* cyan-600 */
+  --brand-primary-hover: 14 116 144; /* cyan-700 */
+  --brand-secondary: 13 148 136; /* teal-600 */
+  --brand-secondary-hover: 15 118 110; /* teal-700 */
+}
+html.counter-ui.dark {
+  --brand-primary: 6 182 212; /* cyan-500 */
+  --brand-primary-hover: 8 145 178;
+}
+html.counter-ui body {
+  background: #f1f5f9; /* slate-100 */
+}
+html.counter-ui.dark body {
+  background: #0b1120;
+}
+html.counter-ui .backdrop-blur-xl {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html.counter-ui .bg-white\/75 {
+  background-color: #fff;
+}
+html.counter-ui.dark .dark\:bg-slate-900\/75,
+html.counter-ui.dark .dark\:bg-slate-900\/95 {
+  background-color: #0f172a;
+}
+html.counter-ui .shadow-xl {
+  box-shadow: 0 0 0 1px rgb(226 232 240); /* a hairline instead of a heavy shadow */
+}
+html.counter-ui.dark .shadow-xl {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+/* Fewer moving parts for people who ask their phone for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  html.counter-ui *,
+  html.counter-ui *::before,
+  html.counter-ui *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

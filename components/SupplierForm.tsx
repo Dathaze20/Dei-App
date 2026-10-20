@@ -16,16 +16,19 @@ const SupplierForm: React.FC<SupplierFormProps> = ({ onSave, onCancel }) => {
     const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (name && color) onSave({ name, color }); };
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <input name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('supplierName')} className="p-2 border rounded w-full bg-slate-50 dark:bg-slate-700 border-slate-300 dark:border-slate-600 focus:ring-brand-primary focus:border-brand-primary" required />
+            <div>
+              <label htmlFor="supplier-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('supplierName')}</label>
+              <input id="supplier-name" name="name" value={name} onChange={(e) => setName(e.target.value)} className="min-h-11 px-3 border rounded-lg w-full bg-slate-50 dark:bg-slate-700 border-slate-300 dark:border-slate-600 focus:ring-brand-primary focus:border-brand-primary" required />
+            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t('supplierColor')}</label>
-              <div className="grid grid-cols-6 sm:grid-cols-9 gap-2">
-                {colorOptions.map(c => (<button type="button" key={c} onClick={() => setColor(c)} className={`w-10 h-10 rounded-full transition-transform transform hover:scale-110 ${c} ${color === c ? 'ring-2 ring-offset-2 dark:ring-offset-slate-800 ring-brand-primary' : ''}`} aria-label={t('selectColor', { color: c })} />))}
+              <div className="flex flex-wrap gap-2">
+                {colorOptions.map(c => (<button type="button" key={c} onClick={() => setColor(c)} className={`w-11 h-11 rounded-full transition-transform transform hover:scale-110 ${c} ${color === c ? 'ring-2 ring-offset-2 dark:ring-offset-slate-800 ring-brand-primary' : ''}`} aria-label={t('selectColor', { color: c })} aria-pressed={color === c} />))}
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={onCancel} className="py-2 px-4 rounded-lg bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 font-semibold">{t('cancel')}</button>
-                <button type="submit" className="py-2 px-4 rounded-lg bg-brand-primary text-white hover:bg-brand-primary-hover font-semibold">{t('saveSupplier')}</button>
+                <button type="button" onClick={onCancel} className="min-h-11 px-4 rounded-lg bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 font-semibold">{t('cancel')}</button>
+                <button type="submit" className="min-h-11 px-4 rounded-lg bg-brand-primary text-white hover:bg-brand-primary-hover font-semibold">{t('saveSupplier')}</button>
             </div>
         </form>
     );

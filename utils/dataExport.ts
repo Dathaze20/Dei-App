@@ -54,8 +54,9 @@ export const isAppOwnedKey = (key: string): boolean =>
   KNOWN_KEY_NAMES.has(key) || APP_KEY_PREFIXES.some(prefix => key.startsWith(prefix));
 
 /**
- * Keys the app uses to coordinate a restore between tabs (for example the restore lock).
- * They are control signals, not deli data: never exported, never snapshotted, never restored.
+ * Keys the app uses to coordinate a restore between tabs (for example the restore lock), and
+ * device-only display preferences (the Classic/Counter screen choice, utils/uiMode.ts).
+ * They are not deli data: never exported, never snapshotted, never restored.
  */
 export const SYSTEM_KEY_PREFIX = 'deliordernyc_sys_';
 

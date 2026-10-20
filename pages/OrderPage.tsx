@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import useInventory from '../hooks/useInventory';
 import { PlusIcon, MinusIcon, TrashIcon, ShareIcon, XIcon, ShoppingCartIcon, HomeIcon, EnvelopeIcon, ClipboardListIcon, CheckCircleIcon, AlertTriangleIcon } from '../components/shared/icons';
 import SupplierChip from '../components/SupplierChip';
@@ -11,6 +11,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import Modal from '../components/Modal';
 import OverlayPortal from '../components/OverlayPortal';
 import ProductThumb from '../components/ProductThumb';
+import { useBackHandler } from '../hooks/useBackHandler';
 
 const itemVariants = {
   hidden: { opacity: 0, x: -50 },
@@ -21,6 +22,7 @@ const itemVariants = {
 const OrderPage: React.FC = () => {
   const { currentOrder, getProductById, getSupplierById, updateOrderItemQuantity, removeFromOrder, convertOrderLineToItems, deliName, clearOrder, getWorkflow } = useInventory();
   const { t } = useTranslation();
+  const location = useLocation(); // the empty-order button goes back to Counter or Classic, whichever is open
   const navigate = useNavigate();
   const [isShareModalOpen, setShareModalOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -43,6 +45,7 @@ const OrderPage: React.FC = () => {
     setShareModalOpen(false);
     setIsCopied(false);
   }
+  useBackHandler(isShareModalOpen, handleCloseShareModal);
   
   if (currentOrder.items.length === 0) {
     return (
@@ -53,7 +56,7 @@ const OrderPage: React.FC = () => {
           <p className="text-brand-muted mt-2 max-w-md mx-auto">{t('orderEmptyMessage')}</p>
           <div className="mt-6">
               <motion.button
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate(location.pathname.startsWith('/counter') ? '/counter' : '/')}
                   className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center gap-2 mx-auto"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}

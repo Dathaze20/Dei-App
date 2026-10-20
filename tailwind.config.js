@@ -30,11 +30,13 @@ export default {
         sans: ['Inter', 'sans-serif'],
       },
       colors: {
+        // Read from CSS variables (index.css) so the Counter screen can use its cyan/teal accents
+        // on the shared panels and dialogs. Classic View keeps exactly these defaults.
         brand: {
-          primary: '#4f46e5', // indigo-600
-          'primary-hover': '#4338ca', // indigo-700
-          secondary: '#d946ef', // fuchsia-500
-          'secondary-hover': '#c026d3', // fuchsia-600
+          primary: 'rgb(var(--brand-primary, 79 70 229) / <alpha-value>)', // indigo-600
+          'primary-hover': 'rgb(var(--brand-primary-hover, 67 56 202) / <alpha-value>)', // indigo-700
+          secondary: 'rgb(var(--brand-secondary, 217 70 239) / <alpha-value>)', // fuchsia-500
+          'secondary-hover': 'rgb(var(--brand-secondary-hover, 192 38 211) / <alpha-value>)', // fuchsia-600
           muted: '#64748b', // slate-500
         },
       },

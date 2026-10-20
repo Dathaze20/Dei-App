@@ -9,6 +9,8 @@ import ShelfTagModal from '../components/ShelfTagModal';
 import DataExportPanel from '../components/DataExportPanel';
 import RestorePanel from '../components/RestorePanel';
 import AppUpdatePanel from '../components/AppUpdatePanel';
+import ScreenStylePanel from '../components/ScreenStylePanel';
+import { isAndroidApp } from '../utils/nativeApp';
 import StockLabel from '../components/StockLabel';
 import ProductGroup from '../components/ProductGroup';
 import ProductThumb from '../components/ProductThumb';
@@ -146,7 +148,9 @@ const ManageProductsPage: React.FC = () => {
           </div>
       </motion.div>
 
-      <AppUpdatePanel />
+      <ScreenStylePanel current="classic" />
+
+      {isAndroidApp() && <AppUpdatePanel />}
 
       <DataExportPanel />
 
