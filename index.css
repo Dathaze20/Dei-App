@@ -15,3 +15,52 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* --- Phone layout (C2.2a) ---------------------------------------------------------------------
+   Android 15+ draws the app edge to edge, under the status bar and the gesture bar. Capacitor 8
+   reports their sizes as --safe-area-inset-* (older WebViews return 0 for env()), browsers
+   report them through env(); the larger of the two is used. In a desktop browser both are 0. */
+:root {
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+  --safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+  /* Header bar and bottom navigation heights, in rem so they grow with larger text. */
+  --header-h: 3.5rem;
+  --nav-h: 4rem;
+}
+
+@layer base {
+  /* Last line of defence only: every screen is laid out to fit (see e2e/mobile-layout.spec.ts,
+     which measures elements, not the scroll width, so this never hides a layout bug). */
+  html,
+  body {
+    overflow-x: clip;
+  }
+}
+
+@layer utilities {
+  /* Space under page content for the bottom navigation and the gesture bar (phones only). */
+  .pb-bottom-nav {
+    padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 1rem);
+  }
+  @media (min-width: 768px) {
+    .pb-bottom-nav {
+      padding-bottom: 2rem;
+    }
+  }
+  .pt-safe {
+    padding-top: var(--safe-top);
+  }
+  .pb-safe {
+    padding-bottom: var(--safe-bottom);
+  }
+  .px-safe {
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+  /* Sticky bars directly under the header. */
+  .top-below-header {
+    top: calc(var(--safe-top) + var(--header-h));
+  }
+}

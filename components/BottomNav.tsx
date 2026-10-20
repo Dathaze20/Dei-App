@@ -19,20 +19,20 @@ const BottomNav: React.FC = () => {
 
     return (
         <motion.nav 
-            className="md:hidden fixed bottom-0 left-0 right-0 bg-white/75 dark:bg-slate-950/75 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 z-40"
+            className="md:hidden fixed bottom-0 left-0 right-0 pb-safe px-safe bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 z-40"
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30, delay: 0.2 }}
-            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
-            <div className="flex justify-around items-center h-16 max-w-7xl mx-auto px-2">
+            {/* Stays fully above the Android gesture bar (pb-safe); grows with larger text. */}
+            <div className="flex justify-around items-stretch min-h-[var(--nav-h)] max-w-7xl mx-auto px-1">
                 {navItems.map(({ to, label, Icon }) => {
                     const isActive = location.pathname === to;
                     return (
                         <NavLink 
                             key={to} 
                             to={to} 
-                            className="relative flex-1 h-full flex flex-col items-center justify-center gap-1 text-xs focus:outline-none transition-colors group"
+                            className="relative flex-1 min-w-0 min-h-11 flex flex-col items-center justify-center gap-0.5 py-1.5 text-xs focus:outline-none transition-colors group"
                             aria-current={isActive ? "page" : undefined}
                         >
                             {/* The moving pill indicator */}
@@ -47,10 +47,10 @@ const BottomNav: React.FC = () => {
                             
                             {/* Icon container for tap effect and notification */}
                             <motion.div className="relative" whileTap={{ scale: 0.9 }}>
-                                <Icon className={`h-6 w-6 transition-colors ${isActive ? 'text-brand-primary' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white'}`} />
+                                <Icon className={`h-6 w-6 transition-colors ${isActive ? 'text-brand-primary' : 'text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'}`} />
                                 {label === t('order') && orderItemCount > 0 && (
                                     <motion.span 
-                                        className="absolute -top-1 -right-2 block h-4 w-4 rounded-full bg-brand-secondary text-white text-[10px] flex items-center justify-center font-bold ring-2 ring-white dark:ring-slate-950"
+                                        className="absolute -top-1 -end-2 block min-w-4 h-4 px-0.5 rounded-full bg-brand-secondary text-white text-[10px] flex items-center justify-center font-bold ring-2 ring-white dark:ring-slate-950"
                                         initial={{ scale: 0 }}
                                         animate={{ scale: 1 }}
                                         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
@@ -61,7 +61,7 @@ const BottomNav: React.FC = () => {
                             </motion.div>
                             
                             {/* Label */}
-                            <span className={`font-semibold transition-colors ${isActive ? 'text-brand-primary' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white'}`}>
+                            <span className={`relative max-w-full truncate px-1 leading-tight font-semibold transition-colors ${isActive ? 'text-brand-primary' : 'text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'}`}>
                                 {label}
                             </span>
                         </NavLink>

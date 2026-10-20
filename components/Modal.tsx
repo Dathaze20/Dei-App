@@ -2,6 +2,7 @@ import React, { ReactNode, useEffect, useRef } from 'react';
 import { XIcon } from './shared/icons';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import OverlayPortal from './OverlayPortal';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface ModalProps {
   isOpen: boolean;
@@ -55,6 +56,8 @@ const desktopModalVariants: Variants = {
 
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+  const { t } = useTranslation();
+  const closeLabel = t('closeDialog');
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -73,7 +76,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-lg z-50 flex flex-col justify-end sm:justify-center sm:items-center"
+          className="fixed inset-0 pt-safe px-safe bg-slate-900/50 backdrop-blur-lg z-50 flex flex-col justify-end sm:justify-center sm:items-center"
           variants={backdropVariants}
           initial="hidden"
           animate="visible"
@@ -81,7 +84,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
           onClick={onClose}
         >
           <motion.div
-            className="bg-slate-100 dark:bg-slate-900/95 w-full rounded-t-2xl sm:rounded-xl shadow-2xl sm:h-auto sm:max-w-xl ring-1 ring-black/5 dark:ring-white/10"
+            className="flex max-h-full min-w-0 flex-col bg-slate-100 dark:bg-slate-900/95 w-full rounded-t-2xl sm:rounded-xl shadow-2xl sm:h-auto sm:max-w-xl ring-1 ring-black/5 dark:ring-white/10"
             variants={isMobile ? modalVariants : desktopModalVariants}
             initial="hidden"
             animate="visible"
@@ -96,18 +99,21 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
               }
             }}
           >
-            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-t-2xl sm:rounded-t-xl z-10">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white">{title}</h3>
+            <div className="flex flex-shrink-0 justify-between items-center gap-2 ps-4 pe-2 py-1.5 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-t-2xl sm:rounded-t-xl z-10">
+              <h3 className="min-w-0 truncate text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
               <motion.button
                 onClick={onClose}
-                className="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary dark:focus:ring-offset-slate-800"
+                aria-label={closeLabel}
+                className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary dark:focus:ring-offset-slate-800"
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
               >
                 <XIcon className="h-6 w-6" />
               </motion.button>
             </div>
-            <div className="p-4 sm:p-6 overflow-y-auto max-h-[85vh]">
+            {/* Scrolls inside the sheet, which never reaches under the status bar; the last part stays
+                above the gesture bar. */}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-[calc(1rem+var(--safe-bottom))] sm:max-h-[85vh]">
               {children}
             </div>
           </motion.div>

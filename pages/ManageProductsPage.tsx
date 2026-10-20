@@ -10,6 +10,8 @@ import DataExportPanel from '../components/DataExportPanel';
 import RestorePanel from '../components/RestorePanel';
 import AppUpdatePanel from '../components/AppUpdatePanel';
 import StockLabel from '../components/StockLabel';
+import ProductGroup from '../components/ProductGroup';
+import ProductThumb from '../components/ProductThumb';
 import AnimatedPage from '../components/AnimatedPage';
 import { motion } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
@@ -17,6 +19,8 @@ import { useTranslation } from '../hooks/useTranslation';
 const emptyProduct: Omit<Product, 'id' | 'currentStockUnits'> = {
   name: '', category: '', supplierId: '', flavor: '', size: '', unitsPerCase: 1, costPrice: 0, retailPrice: 0, imageUrl: '', reorderThresholdUnits: 0, upc: '',
 };
+
+const groupColors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ef4444', '#f59e0b', '#14b8a6'];
 
 const listVariants = {
   hidden: { opacity: 0 },
@@ -95,17 +99,25 @@ const ManageProductsPage: React.FC = () => {
   }
   
   const sortedProducts = [...products].sort((a, b) => a.name.localeCompare(b.name));
+  // Phones list products per supplier (suppliers by name; products keep the order above).
+  const productsBySupplier = [...suppliers]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(supplier => ({ supplierId: supplier.id, name: supplier.name, items: sortedProducts.filter(p => p.supplierId === supplier.id) }))
+    .filter(section => section.items.length > 0);
+  // Products whose supplier no longer exists are still listed, never hidden.
+  const orphans = sortedProducts.filter(p => !suppliers.some(s => s.id === p.supplierId));
+  if (orphans.length > 0) productsBySupplier.push({ supplierId: '__none__', name: t('otherProducts'), items: orphans });
 
   return (
     <AnimatedPage>
       <div className="space-y-8">
       <motion.div 
-        className="bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-4 sm:p-6"
+        className="bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-3 sm:p-6"
         initial={{ opacity: 0, y:20 }}
         animate={{ opacity: 1, y:0 }}
         transition={{ delay: 0.1 }}
       >
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">{t('storeSettings')}</h2>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-3">{t('storeSettings')}</h2>
           <div className="space-y-4 max-w-md">
             <div>
               <label htmlFor="deliName" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -117,14 +129,14 @@ const ManageProductsPage: React.FC = () => {
                 id="deliName"
                 value={localDeliName}
                 onChange={(e) => setLocalDeliName(e.target.value)}
-                className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 shadow-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary sm:text-sm p-2 transition"
+                className="mt-1 block w-full min-h-11 rounded-md border-slate-300 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 shadow-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary sm:text-sm px-3 transition"
                 placeholder={t('placeholderDeliName')}
               />
             </div>
             <div className="text-end">
               <motion.button
                 onClick={handleDeliNameSave}
-                className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold min-h-11 px-4 rounded-lg transition-colors"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -141,15 +153,15 @@ const ManageProductsPage: React.FC = () => {
       <RestorePanel />
 
       <motion.div 
-        className="bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-4 sm:p-6"
+        className="bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-3 sm:p-6"
         initial={{ opacity: 0, y:20 }}
         animate={{ opacity: 1, y:0 }}
         transition={{ delay: 0.2 }}
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">{t('manageProducts')}</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">{t('manageProducts')}</h1>
           <div className="flex gap-2">
-              <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={() => handleOpenModal()} className="flex items-center gap-2 bg-brand-primary hover:bg-brand-primary-hover text-white font-bold py-2 px-4 rounded-lg transition-colors">
+              <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={() => handleOpenModal()} className="flex items-center gap-2 bg-brand-primary hover:bg-brand-primary-hover text-white font-bold min-h-11 px-4 rounded-lg transition-colors">
                 <PlusIcon className="h-5 w-5" />
                 <span>{t('newProduct')}</span>
               </motion.button>
@@ -162,43 +174,36 @@ const ManageProductsPage: React.FC = () => {
           </p>
         )}
 
-        {/* Mobile Card View */}
-        <motion.div className="md:hidden space-y-4" variants={listVariants} initial="hidden" animate="visible">
-          {sortedProducts.map(product => {
-            const supplier = getSupplierById(product.supplierId);
-            return (
-              <motion.div key={product.id} variants={itemVariants} className="bg-slate-50/70 dark:bg-slate-800/60 rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800">
-                <div className="p-4">
-                  <div className="flex gap-4">
-                    <img src={product.imageUrl || 'https://placehold.co/400x400/e2e8f0/4a5568?text=N/A'} alt="" className="w-20 h-20 object-cover rounded-md flex-shrink-0 bg-slate-200" />
-                    <div className="flex-1">
-                      <p className="font-bold text-slate-800 dark:text-slate-100">{product.name}</p>
-                      <p className="text-sm text-brand-muted">{product.flavor}</p>
-                      <div className="mt-2">
-                        {supplier && <SupplierChip supplier={supplier} />}
+        {/* Phones: one collapsible section per supplier (closed at first) with compact rows, so the
+            page is not a single list of every product. Every product, field and action is kept. */}
+        <div className="md:hidden space-y-2">
+          {productsBySupplier.map(({ supplierId, name, items }, index) => (
+            <ProductGroup key={supplierId} title={name} count={items.length} color={groupColors[index % groupColors.length]} defaultOpen={false}>
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {items.map(product => (
+                  <div key={product.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 px-1" data-testid="manage-product">
+                    <div className="flex min-w-0 flex-1 basis-44 items-center gap-3">
+                      <ProductThumb product={product} alt="" className="w-12 h-12 rounded-md" />
+                      <div className="min-w-0 flex-1">
+                        <p dir="auto" className="rtl:text-right truncate font-bold leading-snug text-slate-800 dark:text-slate-100">{product.name}</p>
+                        <p dir="auto" className="rtl:text-right line-clamp-2 break-words text-sm leading-snug text-slate-600 dark:text-slate-300">{product.flavor}</p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-slate-600 dark:text-slate-300">
+                          <span>{getWorkflow(product.supplierId).countStock ? <StockLabel product={product} /> : '—'}</span>
+                          <span className="font-mono break-all">UPC {product.upc || 'N/A'}</span>
+                        </div>
                       </div>
                     </div>
+                    <div className="ms-auto flex flex-shrink-0 items-center gap-1">
+                      <motion.button whileTap={{scale:0.9}} onClick={() => handleOpenTagModal(product)} aria-label={t('shelfTag')} className="inline-flex h-11 w-11 items-center justify-center text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-slate-700 rounded-full transition-colors"><QrCodeIcon className="h-5 w-5" /></motion.button>
+                      <motion.button whileTap={{scale:0.9}} onClick={() => handleOpenModal(product)} aria-label={t('editProduct')} className="inline-flex h-11 w-11 items-center justify-center text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-slate-700 rounded-full transition-colors"><PencilIcon className="h-5 w-5" /></motion.button>
+                      <motion.button whileTap={{scale:0.9}} onClick={() => handleDelete(product)} aria-label={t('deleteProduct')} className="inline-flex h-11 w-11 items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-slate-700 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
+                    </div>
                   </div>
-                </div>
-                <div className="px-4 pb-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold text-slate-500 dark:text-slate-400">Stock:</span>
-                    <span>{getWorkflow(product.supplierId).countStock ? <StockLabel product={product} /> : '—'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold text-slate-500 dark:text-slate-400">UPC:</span>
-                    <span className="font-mono text-xs">{product.upc || 'N/A'}</span>
-                  </div>
-                </div>
-                <div className="bg-slate-100/70 dark:bg-slate-900/50 px-4 py-2 flex justify-end gap-2">
-                    <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenTagModal(product)} className="p-2 text-green-600 hover:text-green-800 bg-green-100/0 hover:bg-green-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><QrCodeIcon className="h-5 w-5" /></motion.button>
-                    <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleOpenModal(product)} className="p-2 text-blue-600 hover:text-blue-800 bg-blue-100/0 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><PencilIcon className="h-5 w-5" /></motion.button>
-                    <motion.button whileTap={{scale:0.9}} whileHover={{scale:1.1}} onClick={() => handleDelete(product)} className="p-2 text-red-600 hover:text-red-800 bg-red-100/0 hover:bg-red-100 dark:bg-slate-800 dark:hover:bg-slate-600 rounded-full transition-colors"><TrashIcon className="h-5 w-5"/></motion.button>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+                ))}
+              </div>
+            </ProductGroup>
+          ))}
+        </div>
         
         {/* Desktop Table View */}
         <div className="hidden md:block overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
@@ -245,14 +250,14 @@ const ManageProductsPage: React.FC = () => {
       </motion.div>
 
       <motion.div 
-        className="bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-4 sm:p-6"
+        className="bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-3 sm:p-6"
         initial={{ opacity: 0, y:20 }}
         animate={{ opacity: 1, y:0 }}
         transition={{ delay: 0.3 }}
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('manageSuppliers')}</h2>
-            <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={() => setSupplierModalOpen(true)} className="flex items-center gap-2 bg-brand-secondary hover:bg-brand-secondary-hover text-white font-bold py-2 px-4 rounded-lg transition-colors">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('manageSuppliers')}</h2>
+            <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={() => setSupplierModalOpen(true)} className="flex items-center gap-2 bg-brand-secondary hover:bg-brand-secondary-hover text-white font-bold min-h-11 px-4 rounded-lg transition-colors">
                 <PlusIcon className="h-5 w-5" />
                 <span>{t('newSupplier')}</span>
             </motion.button>
@@ -302,7 +307,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ product: initialProduct, supp
 
     const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave(product); };
     
-    const inputStyle = "p-3 border rounded-lg bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all duration-300 ease-in-out"
+    const inputStyle = "min-w-0 min-h-11 px-3 py-2 border rounded-lg bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all duration-300 ease-in-out"
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -323,8 +328,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ product: initialProduct, supp
                 <div className="sm:col-span-2"><input name="imageUrl" value={product.imageUrl || ''} onChange={handleChange} placeholder={t('imageUrlOptional')} className={`${inputStyle} w-full`} /></div>
             </div>
             <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={onCancel} className="py-2 px-4 rounded-lg bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 font-semibold active:scale-98">{t('cancel')}</button>
-                <button type="submit" className="py-2 px-4 rounded-lg bg-brand-primary text-white hover:bg-brand-primary-hover font-semibold active:scale-98">{t('saveProduct')}</button>
+                <button type="button" onClick={onCancel} className="min-h-11 px-4 rounded-lg bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 font-semibold active:scale-98">{t('cancel')}</button>
+                <button type="submit" className="min-h-11 px-4 rounded-lg bg-brand-primary text-white hover:bg-brand-primary-hover font-semibold active:scale-98">{t('saveProduct')}</button>
             </div>
         </form>
     );

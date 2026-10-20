@@ -38,9 +38,9 @@ function App({ startupNotice = null }: { startupNotice?: StartupNotice | null })
     }, []); // Run only once on mount
 
   return (
-    <div dir={dir} className="min-h-screen bg-transparent text-slate-800 dark:text-slate-200 font-sans">
+    <div dir={dir} className="min-h-screen bg-transparent text-slate-800 dark:text-slate-200 font-sans px-safe">
       <Header />
-      <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-28 md:pb-8">
+      <main className="px-3 pt-3 sm:px-6 sm:pt-6 lg:px-8 lg:pt-8 max-w-7xl mx-auto pb-bottom-nav">
         <StorageStatusBanner notice={startupNotice} />
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>

@@ -48,7 +48,7 @@ const c1Data = { inventory_stockCounts: C1_COUNTS, inventory_currentOrder: C1_OR
 const openFruitPunch = async (page: Page) => {
   await openArizona(page);
   await page.getByText('Caution Extreme Fruit Punch').first().click();
-  await expect(page.locator('img[alt*="Caution Extreme Fruit Punch"]').last()).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Product Details|Detalles del Producto|تفاصيل المنتج/ })).toBeVisible();
 };
 
 const openBoarsHead = async (page: Page) => {
@@ -69,6 +69,12 @@ const openShare = async (page: Page) => {
   await expect(page.locator('textarea[readonly]').first()).toBeVisible();
 };
 
+/** Since C2.2a, Manage lists products in supplier sections that start closed; open the first. */
+const openManageSection = async (page: Page) => {
+  const closed = page.locator('main button[aria-expanded="false"]').filter({ has: page.locator('h3') }).filter({ visible: true });
+  if (await closed.count()) await closed.first().click();
+};
+
 const scrollToBackup = async (page: Page) => {
   const heading = page.getByRole('heading', { name: 'Backup & Export' });
   await heading.scrollIntoViewIfNeeded();
@@ -86,7 +92,7 @@ export const SCREENS: Screen[] = [
     prepare: async page => {
       await openArizona(page);
       await page.getByText('Caution Extreme Fruit Punch').first().click();
-      await expect(page.locator('img[alt*="Caution Extreme Fruit Punch"]').last()).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Product Details' })).toBeVisible();
     },
   },
   {
@@ -96,7 +102,7 @@ export const SCREENS: Screen[] = [
     path: '/',
     prepare: async page => {
       // The round "+" after the supplier chips; its form shows every supplier colour choice.
-      await page.locator('main .lg\\:hidden button.rounded-full.h-10.w-10').first().click();
+      await page.locator('main .lg\\:hidden button.rounded-full:has(svg)').first().click();
       await expect(page.getByPlaceholder('Supplier Name')).toBeVisible();
     },
   },
@@ -110,7 +116,8 @@ export const SCREENS: Screen[] = [
     language: 'en',
     path: '/manage',
     prepare: async page => {
-      await page.locator('button.text-blue-600').filter({ visible: true }).first().click();
+      await openManageSection(page);
+      await page.locator('button.text-blue-600, button[aria-label="Edit Product"]').filter({ visible: true }).first().click();
       await expect(page.locator('input[name="name"]')).toBeVisible();
     },
   },
@@ -120,7 +127,8 @@ export const SCREENS: Screen[] = [
     language: 'en',
     path: '/manage',
     prepare: async page => {
-      await page.locator('button.text-green-600').filter({ visible: true }).first().click();
+      await openManageSection(page);
+      await page.locator('button.text-green-600, button[aria-label="Shelf tag"]').filter({ visible: true }).first().click();
       await expect(page.locator('svg[viewBox]').filter({ has: page.locator('path') }).last()).toBeVisible();
     },
   },
