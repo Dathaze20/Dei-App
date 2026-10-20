@@ -19,7 +19,7 @@ const BottomNav: React.FC = () => {
 
     return (
         <motion.nav 
-            className="md:hidden fixed bottom-0 left-0 right-0 pb-safe px-safe bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 z-40"
+            className="md:hidden fixed bottom-0 left-0 right-0 pb-safe px-safe bg-white dark:bg-slate-950 border-t border-slate-200/80 dark:border-slate-800/80 z-40"
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30, delay: 0.2 }}

@@ -34,7 +34,7 @@ const Header: React.FC = () => {
   const iconButton = "inline-flex items-center justify-center min-h-11 min-w-11 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors";
 
   return (
-    <header className="pt-safe bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur-xl shadow-lg shadow-slate-900/5 dark:shadow-black/20 sticky top-0 z-40">
+    <header className="pt-safe bg-slate-100 dark:bg-slate-950 shadow-lg shadow-slate-900/5 dark:shadow-black/20 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-2 h-[var(--header-h)]">
           <NavLink to="/" className="min-w-0 flex-1 min-h-11 flex flex-col justify-center text-start">

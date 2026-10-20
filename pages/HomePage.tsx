@@ -214,7 +214,7 @@ const HomePage: React.FC = () => {
         </aside>
 
         <div className="flex-1 min-w-0">
-            <div className="flex gap-2 mb-2 items-center sticky top-below-header z-30 bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur-md -mx-3 px-3 py-2 sm:mx-0 sm:px-0">
+            <div className="flex gap-2 mb-2 items-center sticky top-below-header z-30 bg-slate-100 dark:bg-slate-950 -mx-3 px-3 py-2 sm:mx-0 sm:px-0">
                 <motion.input
                     type="text"
                     value={searchQuery}
