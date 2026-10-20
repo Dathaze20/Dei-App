@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import React, { useEffect, useRef } from 'react';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Header from './components/Header';
 import HomePage from './pages/HomePage';
 import OrderPage from './pages/OrderPage';
@@ -11,10 +11,22 @@ import { AnimatePresence } from 'framer-motion';
 import { useTranslation } from './hooks/useTranslation';
 import StorageStatusBanner from './components/StorageStatusBanner';
 import { StartupNotice } from './utils/safetyBootstrap';
+import CounterShell from './components/counter/CounterShell';
+import { readUiMode } from './utils/uiMode';
 
 function App({ startupNotice = null }: { startupNotice?: StartupNotice | null }) {
     const location = useLocation();
+    const navigate = useNavigate();
     const { dir } = useTranslation();
+
+    // Opening the app: go to the Counter screen if that is the chosen screen style on this phone.
+    // Only on launch, at the home screen; links (shelf-tag QR codes) and Classic stay reachable.
+    const launched = useRef(false);
+    useEffect(() => {
+        if (launched.current) return;
+        launched.current = true;
+        if (readUiMode() === 'counter' && location.pathname === '/') navigate('/counter', { replace: true });
+    }, [location.pathname, navigate]);
 
     // Effect to unlock audio on first user interaction
     useEffect(() => {
@@ -36,6 +48,14 @@ function App({ startupNotice = null }: { startupNotice?: StartupNotice | null })
             window.removeEventListener('touchend', unlockAudio);
         };
     }, []); // Run only once on mount
+
+  if (location.pathname === '/counter' || location.pathname.startsWith('/counter/')) {
+    return (
+      <div dir={dir} className="font-sans px-safe">
+        <CounterShell startupNotice={startupNotice} />
+      </div>
+    );
+  }
 
   return (
     <div dir={dir} className="min-h-screen bg-transparent text-slate-800 dark:text-slate-200 font-sans px-safe">
