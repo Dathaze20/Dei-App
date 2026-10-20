@@ -29,15 +29,18 @@ const OrderLines: React.FC<{ group: SummaryGroup }> = ({ group }) => {
     <ul className="divide-y divide-slate-100 dark:divide-white/5">
       {group.lines.map(({ item, product, unit, priced, lineTotal, olderCaseLine }) => {
         const name = [product.name, product.flavor].filter(Boolean).join(' ');
+        // Case suppliers lead with the flavor (the brand repeats down the list); item lists
+        // (Boar's Head) lead with the product, as on the Counter tab: "OvenGold Turkey Breast".
+        const flavorFirst = group.workflow.orderStyle === 'cases' && !!product.flavor;
+        const primary = flavorFirst ? product.flavor : product.name;
+        const secondary = [flavorFirst ? product.name : product.flavor, product.size].filter(Boolean).join(' · ');
         return (
           <li key={`${item.productId}|${unit}`} className="py-2" data-testid="order-line">
             <div className="flex flex-wrap items-start gap-x-3">
               <ProductThumb product={product} alt="" className="h-11 w-11 rounded-lg" />
               <div className="min-w-0 flex-1 basis-32">
-                <p dir="auto" className="break-words font-semibold leading-snug rtl:text-right">{product.flavor || product.name}</p>
-                <p dir="auto" className="break-words text-xs text-slate-500 rtl:text-right dark:text-slate-400">
-                  {[product.flavor ? product.name : '', product.size].filter(Boolean).join(' · ')}
-                </p>
+                <p dir="auto" className="break-words font-semibold leading-snug rtl:text-right" data-testid="order-line-name">{primary}</p>
+                <p dir="auto" className="break-words text-xs text-slate-500 rtl:text-right dark:text-slate-400">{secondary}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {priced
                     ? t('lineEstimate', { quantity: item.quantity, price: money(product.costPrice) })

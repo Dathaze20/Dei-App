@@ -226,6 +226,13 @@ test.describe('ordering by supplier', () => {
     const text = await list.locator('textarea').inputValue();
     expect(text).not.toMatch(/\$|case|count/i);
 
+    // On the Orders tab the list leads with the product, not the flavor ("Mild").
+    await back(page);
+    await page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ }).click();
+    await expect(page.getByTestId('order-line-name')).toHaveText(['Provolone Cheese', 'OvenGold Turkey Breast']);
+    await page.getByTestId('counter-nav').getByRole('link', { name: /Counter/ }).click();
+    await page.getByTestId('order-tray').click();
+
     // Unticking takes it off the list completely.
     await back(page);
     await page.getByRole('checkbox', { name: /Provolone Cheese/ }).click();
