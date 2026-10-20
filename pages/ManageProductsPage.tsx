@@ -10,7 +10,6 @@ import DataExportPanel from '../components/DataExportPanel';
 import RestorePanel from '../components/RestorePanel';
 import AppUpdatePanel from '../components/AppUpdatePanel';
 import ScreenStylePanel from '../components/ScreenStylePanel';
-import { UiMode } from '../utils/uiMode';
 import { isAndroidApp } from '../utils/nativeApp';
 import StockLabel from '../components/StockLabel';
 import ProductGroup from '../components/ProductGroup';
@@ -41,15 +40,7 @@ const itemVariants = {
 };
 
 
-/**
- * Which parts to show. Classic View shows everything on one page; the Counter screen shows the
- * products and suppliers as its Catalog, and the rest as its Settings (reached from its menu).
- */
-export type ManageSections = 'all' | 'catalog' | 'settings';
-
-const ManageProductsPage: React.FC<{ sections?: ManageSections; uiMode?: UiMode }> = ({ sections = 'all', uiMode = 'classic' }) => {
-  const showSettings = sections !== 'catalog';
-  const showCatalog = sections !== 'settings';
+const ManageProductsPage: React.FC = () => {
   const { products, suppliers, addProduct, updateProduct, deleteProduct, getSupplierById, addSupplier, deliName, updateDeliName, getWorkflow } = useInventory();
   const { t } = useTranslation();
   const [isModalOpen, setModalOpen] = useState(false);
@@ -121,11 +112,9 @@ const ManageProductsPage: React.FC<{ sections?: ManageSections; uiMode?: UiMode 
 
   return (
     <AnimatedPage>
-      <div className={sections === 'all' ? 'space-y-8' : 'space-y-4'}>
-      {showSettings && (<>
+      <div className="space-y-8">
       <motion.div 
-        id="settings-store"
-        className="scroll-mt-24 bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-3 sm:p-6"
+        className="bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-3 sm:p-6"
         initial={{ opacity: 0, y:20 }}
         animate={{ opacity: 1, y:0 }}
         transition={{ delay: 0.1 }}
@@ -159,14 +148,14 @@ const ManageProductsPage: React.FC<{ sections?: ManageSections; uiMode?: UiMode 
           </div>
       </motion.div>
 
-      <ScreenStylePanel current={uiMode} />
+      <ScreenStylePanel current="classic" />
 
-      {isAndroidApp() && <div id="settings-updates" className="scroll-mt-24"><AppUpdatePanel /></div>}
+      {isAndroidApp() && <AppUpdatePanel />}
 
-      <div id="settings-backup" className="scroll-mt-24 space-y-8"><DataExportPanel /><RestorePanel /></div>
-      </>)}
+      <DataExportPanel />
 
-      {showCatalog && (<>
+      <RestorePanel />
+
       <motion.div 
         className="bg-white/75 dark:bg-slate-900/75 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/5 p-3 sm:p-6"
         initial={{ opacity: 0, y:20 }}
@@ -285,7 +274,6 @@ const ManageProductsPage: React.FC<{ sections?: ManageSections; uiMode?: UiMode 
             ))}
         </div>
       </motion.div>
-      </>)}
 
       <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingProduct?.id ? t('editProduct') : t('newProduct')}>
         {editingProduct && <ProductForm product={editingProduct} suppliers={suppliers} onSave={handleSaveProduct} onCancel={handleCloseModal} />}

@@ -13,6 +13,7 @@ import StorageStatusBanner from './components/StorageStatusBanner';
 import { StartupNotice } from './utils/safetyBootstrap';
 import CounterShell from './components/counter/CounterShell';
 import { readUiMode } from './utils/uiMode';
+import { useBackHandler } from './hooks/useBackHandler';
 
 function App({ startupNotice = null }: { startupNotice?: StartupNotice | null }) {
     const location = useLocation();
@@ -49,7 +50,11 @@ function App({ startupNotice = null }: { startupNotice?: StartupNotice | null })
         };
     }, []); // Run only once on mount
 
-  if (location.pathname === '/counter' || location.pathname.startsWith('/counter/')) {
+  const inCounter = location.pathname === '/counter' || location.pathname.startsWith('/counter/');
+  // Classic View: Android Back returns to Products from any other screen; on Products it leaves the app.
+  useBackHandler(!inCounter && location.pathname !== '/', () => { navigate('/', { replace: true }); }, 'screen');
+
+  if (inCounter) {
     return (
       <div dir={dir} className="font-sans px-safe">
         <CounterShell startupNotice={startupNotice} />

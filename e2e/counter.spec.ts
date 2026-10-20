@@ -88,17 +88,20 @@ test.describe('one-tap ordering on the one saved order', () => {
     const groups = page.getByTestId('counter-group').locator('h3');
     await expect(groups).toHaveText(['Meats', 'Cheeses']);
     await expect(page.getByTestId('stock-label')).toHaveCount(0);
-    await row(page, 'Provolone Cheese').getByRole('button', { name: /^Add one/ }).click();
+    await page.getByRole('checkbox', { name: /Provolone Cheese/ }).click();
     expect((await order(page)).find(i => i.productId === 'bh_provolone')).toEqual({ productId: 'bh_provolone', quantity: 1, unit: 'item' });
     await page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ }).click();
-    await expect(page.getByText('1 item(s)')).toBeVisible();
+    await expect(page.getByTestId('order-line').filter({ hasText: 'Provolone' })).toContainText('1 item(s)');
   });
 
-  test('tapping a product opens its sheet with verified stock counting', async ({ page }) => {
+  test('tapping a product opens its sheet with the full name and verified stock counting', async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
     await row(page, 'Caution Extreme Fruit Punch').getByRole('button', { name: /^Details/ }).click();
-    await expect(page.getByRole('heading', { name: 'Product Details' })).toBeVisible();
-    await expect(page.getByTestId('stock-count-panel')).toBeVisible();
+    const sheet = page.getByTestId('product-sheet');
+    await expect(sheet.getByRole('heading', { name: 'Arizona RX Energy' })).toBeVisible();
+    await expect(sheet).toContainText('Caution Extreme Fruit Punch');
+    await sheet.getByRole('button', { name: 'Count stock' }).click();
+    await expect(page.getByTestId('count-sheet')).toBeVisible();
   });
 
   test('large groups start closed and open with one tap', async ({ page }) => {
@@ -125,9 +128,10 @@ test.describe('Orders, Catalog and the menu', () => {
   test('Catalog has the products and suppliers; Settings has backup and restore', async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
     await page.getByTestId('counter-nav').getByRole('link', { name: /Catalog/ }).click();
-    await expect(page.getByRole('heading', { name: 'Manage Products' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Catalog' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Manage Suppliers' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Backup & Export' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'New Product' }).first().click();
+    await page.getByRole('button', { name: 'Add product' }).click();
     await expect(page.getByRole('heading', { name: 'New Product' })).toBeVisible();
     await page.getByRole('button', { name: 'Close' }).click();
 

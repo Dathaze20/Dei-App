@@ -1,11 +1,13 @@
 import React, { createContext, useState, useEffect, ReactNode, useContext, useCallback } from 'react';
 import { guardedSetItem, readTracked } from '../utils/storageGuard';
+import { counterStrings } from './counterStrings';
 
 type Language = 'en' | 'es' | 'ar';
 type Direction = 'ltr' | 'rtl';
 
 export const translations = {
   en: {
+    ...counterStrings.en,
     "deliBrainOfStore": "The brain of the store.",
     "products": "Products",
     "history": "History",
@@ -304,6 +306,7 @@ export const translations = {
     "deleteBlockedWrite": "Its verified stock counts could not be saved before deleting. Try again."
   },
   es: {
+    ...counterStrings.es,
     "deliBrainOfStore": "El cerebro de la tienda.",
     "products": "Productos",
     "history": "Historial",
@@ -602,6 +605,7 @@ export const translations = {
     "deleteBlockedWrite": "No se pudieron guardar sus conteos verificados antes de eliminarlo. Inténtalo de nuevo."
   },
   ar: {
+    ...counterStrings.ar,
     "deliBrainOfStore": "عقل المتجر.",
     "products": "المنتجات",
     "history": "السجل",
@@ -933,7 +937,8 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
     let translation = translations[language][key] || translations['en'][key];
     if (replacements) {
       Object.keys(replacements).forEach(rKey => {
-        translation = translation.replace(`{${rKey}}`, String(replacements[rKey]));
+        // Every occurrence: some sentences use a value twice ("from {quantity} cases to {quantity} items").
+        translation = translation.split(`{${rKey}}`).join(String(replacements[rKey]));
       });
     }
     return translation;

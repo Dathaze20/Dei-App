@@ -8,6 +8,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import RecoveryScreen from './components/RecoveryScreen';
 import { bootstrapSafety } from './utils/safetyBootstrap';
+import { installBackHandling } from './utils/backStack';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -15,6 +16,9 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+
+// Android Back closes sheets and menus first, then returns to the home screen (utils/backStack.ts).
+installBackHandling();
 
 // The app's screens (and their automatic saving) only mount after the startup safety check has
 // finished or rolled back any interrupted restore.

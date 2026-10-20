@@ -1,8 +1,9 @@
 // components/counter/CounterGroup.tsx
 //
 // A group of products (a package size, a product line, MEATS / CHEESES …) that opens and closes
-// with one tap. Large groups start closed (utils/productGrouping.ts startsCollapsed).
-import React, { useState } from 'react';
+// with one tap. Large groups start closed (utils/productGrouping.ts startsCollapsed). Whether a
+// group is open is kept by the Counter tab, so Save & Next can follow exactly what is on screen.
+import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDownIcon, ShoppingCartIcon } from '../shared/icons';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -11,21 +12,21 @@ interface CounterGroupProps {
   title: string;
   count: number;
   inOrder: number;
-  defaultOpen: boolean;
+  open: boolean;
+  onToggle: () => void;
   /** Translated section words (MEATS, CHEESES) are shown in capitals; product data never is. */
   caps?: boolean;
   children: React.ReactNode;
 }
 
-const CounterGroup: React.FC<CounterGroupProps> = ({ title, count, inOrder, defaultOpen, caps = false, children }) => {
+const CounterGroup: React.FC<CounterGroupProps> = ({ title, count, inOrder, open, onToggle, caps = false, children }) => {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(defaultOpen);
   return (
     <section className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 dark:bg-slate-900/80 dark:ring-white/10" data-testid="counter-group">
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        onClick={onToggle}
         className="flex w-full min-h-11 items-center gap-2 px-3 py-2 text-start"
       >
         <h3 dir="auto" className={`min-w-0 flex-1 truncate rtl:text-right font-bold text-slate-800 dark:text-slate-100 ${caps ? 'text-sm uppercase tracking-wide' : 'text-[0.9375rem]'}`}>{title}</h3>

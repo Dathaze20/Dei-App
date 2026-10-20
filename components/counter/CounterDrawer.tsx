@@ -1,7 +1,8 @@
 // components/counter/CounterDrawer.tsx
 //
-// The Counter menu: settings, backup and restore, app updates (Android), language, dark mode and
-// the way back to Classic View. Slides in from the start side (left, or right in Arabic).
+// The Counter menu: the places in Settings (store profile, appearance, backup, restore and
+// recovery, updates, about), quick language and dark mode, and the way back to Classic View.
+// Slides in from the start side (left, or right in Arabic). Android Back and Escape close it.
 import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -9,9 +10,19 @@ import OverlayPortal from '../OverlayPortal';
 import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useTheme } from '../../contexts/ThemeContext';
-import { isAndroidApp } from '../../utils/nativeApp';
+import { useBackHandler } from '../../hooks/useBackHandler';
 import { saveUiMode } from '../../utils/uiMode';
-import { ArrowDownTrayIcon, ArrowUturnLeftIcon, Cog6ToothIcon, GlobeAltIcon, MoonIcon, SparklesIcon, XIcon } from '../shared/icons';
+import {
+  ArrowDownTrayIcon,
+  ArrowUturnLeftIcon,
+  GlobeAltIcon,
+  InformationCircleIcon,
+  MoonIcon,
+  SparklesIcon,
+  SwatchIcon,
+  UserCircleIcon,
+  XIcon,
+} from '../shared/icons';
 
 const row =
   'flex w-full min-h-12 items-center gap-3 rounded-xl px-3 text-start font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-white/5';
@@ -23,13 +34,10 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
   const navigate = useNavigate();
   const closeButton = useRef<HTMLButtonElement>(null);
 
+  useBackHandler(open, onClose);
   useEffect(() => {
-    if (!open) return;
-    closeButton.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    if (open) closeButton.current?.focus();
+  }, [open]);
 
   const goTo = (section: string) => {
     onClose();
@@ -73,17 +81,20 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
               </div>
 
               <div className="flex-1 space-y-1 overflow-y-auto p-2">
-                <button type="button" className={row} onClick={() => goTo('settings-store')}>
-                  <Cog6ToothIcon className="h-5 w-5 text-slate-500" /> {t('menuSettings')}
-                </button>
-                <button type="button" className={row} onClick={() => goTo('settings-backup')}>
-                  <ArrowDownTrayIcon className="h-5 w-5 text-slate-500" /> {t('menuBackup')}
-                </button>
-                {isAndroidApp() && (
-                  <button type="button" className={row} onClick={() => goTo('settings-updates')}>
-                    <SparklesIcon className="h-5 w-5 text-slate-500" /> {t('menuUpdates')}
+                {(
+                  [
+                    ['settings-store', t('storeProfile'), UserCircleIcon],
+                    ['settings-display', t('appearance'), SwatchIcon],
+                    ['settings-backup', t('menuBackup'), ArrowDownTrayIcon],
+                    ['settings-restore', t('menuRestore'), ArrowUturnLeftIcon],
+                    ['settings-updates', t('menuUpdates'), SparklesIcon],
+                    ['settings-about', t('aboutApp'), InformationCircleIcon],
+                  ] as const
+                ).map(([section, label, Icon]) => (
+                  <button key={section} type="button" className={row} onClick={() => goTo(section)} data-section={section}>
+                    <Icon className="h-5 w-5 text-cyan-600 dark:text-cyan-300" /> {label}
                   </button>
-                )}
+                ))}
 
                 <div className="px-3 pb-1 pt-4">
                   <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">

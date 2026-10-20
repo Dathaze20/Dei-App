@@ -103,7 +103,7 @@ export const SCREENS: Screen[] = [
     prepare: async page => {
       // The round "+" after the supplier chips; its form shows every supplier colour choice.
       await page.locator('main .lg\\:hidden button.rounded-full:has(svg)').first().click();
-      await expect(page.getByPlaceholder('Supplier Name')).toBeVisible();
+      await expect(page.getByLabel('Supplier Name').or(page.getByPlaceholder('Supplier Name'))).toBeVisible();
     },
   },
   { name: 'order-light', theme: 'light', language: 'en', path: '/order' },

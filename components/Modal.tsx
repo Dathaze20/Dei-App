@@ -3,6 +3,7 @@ import { XIcon } from './shared/icons';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import OverlayPortal from './OverlayPortal';
 import { useTranslation } from '../hooks/useTranslation';
+import { useBackHandler } from '../hooks/useBackHandler';
 
 interface ModalProps {
   isOpen: boolean;
@@ -58,6 +59,8 @@ const desktopModalVariants: Variants = {
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   const { t } = useTranslation();
   const closeLabel = t('closeDialog');
+  // Android Back and Escape close the dialog.
+  useBackHandler(isOpen, onClose);
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';

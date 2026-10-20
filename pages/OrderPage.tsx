@@ -11,6 +11,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import Modal from '../components/Modal';
 import OverlayPortal from '../components/OverlayPortal';
 import ProductThumb from '../components/ProductThumb';
+import { useBackHandler } from '../hooks/useBackHandler';
 
 const itemVariants = {
   hidden: { opacity: 0, x: -50 },
@@ -44,6 +45,7 @@ const OrderPage: React.FC = () => {
     setShareModalOpen(false);
     setIsCopied(false);
   }
+  useBackHandler(isShareModalOpen, handleCloseShareModal);
   
   if (currentOrder.items.length === 0) {
     return (
