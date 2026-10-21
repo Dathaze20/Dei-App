@@ -65,7 +65,8 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
               initial={{ x: from }}
               animate={{ x: 0 }}
               exit={{ x: from }}
-              transition={{ type: 'spring', stiffness: 420, damping: 44 }} // critically damped: never slides past the edge
+              // A fixed 250 ms slide: always ends exactly at the edge, never past it, on any phone.
+              transition={{ type: 'tween', ease: 'easeOut', duration: 0.25 }}
             >
               <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2 dark:border-white/10">
                 <div className="min-w-0 flex-1">
