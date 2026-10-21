@@ -3,6 +3,7 @@
 // Sharing ONE supplier's part of the order. Case suppliers: the usual order text (QR code, Copy,
 // Text). Item-list suppliers (Boar's Head): a clean list to read aloud to the rep, in MEATS and
 // CHEESES, with no prices, cases or counts (Copy, Text). Only that supplier's products are in it.
+// "Save to history" keeps a snapshot of this order (utils/orderHistory.ts) without clearing it.
 import React, { useMemo, useState } from 'react';
 import QRCode from 'react-qr-code';
 import useInventory from '../../hooks/useInventory';
@@ -10,8 +11,10 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { buildItemListText, supplierDraftSummary, supplierDraftText } from '../../utils/supplierDraft';
 import { copyText, smsHref } from '../../utils/clipboard';
 import Sheet from '../ui/Sheet';
+import { useToast } from '../ui/Toast';
+import { useDaysAgo } from '../BackupStatus';
 import { ui } from '../ui/styles';
-import { CheckCircleIcon, ClipboardListIcon, EnvelopeIcon } from '../shared/icons';
+import { ArchiveBoxIcon, CheckCircleIcon, ClipboardListIcon, EnvelopeIcon } from '../shared/icons';
 
 interface ShareSheetProps {
   supplierId: string | null;
@@ -19,8 +22,10 @@ interface ShareSheetProps {
 }
 
 const ShareSheet: React.FC<ShareSheetProps> = ({ supplierId, onClose }) => {
-  const { currentOrder, getProductById, getSupplierById, getWorkflow, deliName } = useInventory();
+  const { currentOrder, getProductById, getSupplierById, getWorkflow, deliName, saveOrderToHistory } = useInventory();
   const { t } = useTranslation();
+  const toast = useToast();
+  const ago = useDaysAgo();
   const [copy, setCopy] = useState<'idle' | 'done' | 'failed'>('idle');
   const supplier = supplierId ? getSupplierById(supplierId) : undefined;
   const isList = !!supplierId && getWorkflow(supplierId).orderStyle === 'items';
@@ -44,6 +49,13 @@ const ShareSheet: React.FC<ShareSheetProps> = ({ supplierId, onClose }) => {
     setTimeout(() => setCopy('idle'), 2500);
   };
 
+  const saveHistory = () => {
+    if (!supplierId) return;
+    const result = saveOrderToHistory(supplierId, text);
+    if ('reason' in result) toast(result.reason === 'empty' ? t('nothingToShare') : t('historySaveFailed'));
+    else toast(result.duplicate ? t('alreadyInHistory', { when: ago(result.entry.savedAt) }) : t('savedToHistory'));
+  };
+
   // The read-aloud list, shown large: headings in capitals, one product per line.
   const listLines = isList ? text.split('\n').slice(2).filter(line => line.trim() !== '') : [];
 
@@ -63,6 +75,9 @@ const ShareSheet: React.FC<ShareSheetProps> = ({ supplierId, onClose }) => {
           <a href={text ? smsHref(text) : undefined} className={ui.primary} aria-disabled={!text}>
             <EnvelopeIcon className="h-5 w-5" /> {t('sendAsText')}
           </a>
+          <button type="button" className={`${ui.ghost} col-span-2`} onClick={saveHistory} disabled={!text} data-testid="save-to-history">
+            <ArchiveBoxIcon className="h-5 w-5" /> {t('saveToHistory')}
+          </button>
         </div>
       }
     >

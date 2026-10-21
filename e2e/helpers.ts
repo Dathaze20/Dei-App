@@ -22,6 +22,9 @@ export const open = async (page: Page, path = '/') => {
 /** Replaces this origin's storage with `data` and reloads. */
 export const seed = async (page: Page, data: Record<string, string>, path = '/') => {
   await page.goto('/');
+  // Let the first page finish its own start-up redirect before the address is changed, so that
+  // redirect can never land after the next navigation.
+  await expect(page.locator('#root header').first()).toBeVisible();
   await page.evaluate(entries => {
     localStorage.clear();
     for (const [key, value] of Object.entries(entries)) localStorage.setItem(key, value);

@@ -16,6 +16,18 @@ import {
   usedProductIds,
   withCount,
 } from '../utils/stockCounts';
+import {
+  HistoryEntry,
+  HistoryStatus,
+  ORDER_HISTORY_KEY,
+  OrderHistoryDoc,
+  emptyOrderHistory,
+  snapshotFromGroup,
+  withSnapshot,
+  withStatus,
+  withoutEntry,
+} from '../utils/orderHistory';
+import { supplierDraftSummary } from '../utils/supplierDraft';
 
 const initialSuppliers: Supplier[] = [
   { id: 'sup1', name: "Boar's Head", color: 'bg-red-800' },
@@ -259,7 +271,26 @@ export interface InventoryContextType {
    * after the count is saved in storage. Never writes `inventory_products`.
    */
   saveStockCount: (productId: string, units: number, source: CountSource) => SaveCountResult;
+  /** Adds several new products at once (bulk import). Never changes an existing product. */
+  addProducts: (batch: Omit<Product, 'id' | 'currentStockUnits'>[]) => number;
+  /** Saved orders, newest first (utils/orderHistory.ts). */
+  orderHistory: HistoryEntry[];
+  /** False when the saved history cannot be read: nothing is saved over it. */
+  historyAvailable: boolean;
+  /** Saves a snapshot of one supplier's part of the current order. The order itself is unchanged. */
+  saveOrderToHistory: (supplierId: string, text: string) => SaveHistoryResult;
+  setHistoryStatus: (id: string, status: HistoryStatus) => boolean;
+  removeHistoryEntry: (id: string) => boolean;
+  /**
+   * Puts a saved order back as that supplier's current order lines (replacing that supplier's
+   * lines only). Products no longer in the catalog are skipped and counted.
+   */
+  reuseHistoryOrder: (id: string) => { added: number; missing: number };
 }
+
+export type SaveHistoryResult =
+  | { ok: true; entry: HistoryEntry; duplicate: boolean }
+  | { ok: false; reason: 'empty' | 'blocked' | 'write-failed' };
 
 export type DeleteProductResult = { ok: true } | { ok: false; reason: 'counts-unavailable' | 'write-failed' };
 
@@ -304,6 +335,19 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     if (!guardedSetItem(STOCK_COUNTS_KEY, JSON.stringify(next))) return false;
     stockCountsRef.current = next;
     setStockCounts(next);
+    return true;
+  };
+
+  // Saved orders. Like the counts, the key is only created by the first save.
+  const [orderHistoryDoc, setOrderHistoryDoc] = useState<OrderHistoryDoc>(() =>
+    loadGuarded<OrderHistoryDoc>(ORDER_HISTORY_KEY, { parse: JSON.parse, fallback: emptyOrderHistory, serialize: JSON.stringify }).value
+  );
+  const orderHistoryRef = useRef(orderHistoryDoc);
+  const historyAvailable = !guard.blocked.some(entry => entry.key === ORDER_HISTORY_KEY);
+  const commitHistory = (next: OrderHistoryDoc): boolean => {
+    if (isKeyBlocked(ORDER_HISTORY_KEY) || !guardedSetItem(ORDER_HISTORY_KEY, JSON.stringify(next))) return false;
+    orderHistoryRef.current = next;
+    setOrderHistoryDoc(next);
     return true;
   };
 
@@ -430,6 +474,55 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     audioManager.play('add');
   }, [products]);
 
+  const addProducts = useCallback((batch: Omit<Product, 'id' | 'currentStockUnits'>[]) => {
+    if (batch.length === 0) return 0;
+    const used = usedProductIds(products, stockCountsRef.current);
+    const stamp = new Date().getTime();
+    const added: Product[] = batch.map((data, index) => {
+      let id = `prod_${stamp}_${index + 1}`;
+      for (let n = 2; used.has(id); n++) id = `prod_${stamp}_${index + 1}_${n}`;
+      used.add(id);
+      return { ...data, id, currentStockUnits: 0 };
+    });
+    setProducts(prev => [...prev, ...added]);
+    audioManager.play('add');
+    return added.length;
+  }, [products]);
+
+  const saveOrderToHistory = useCallback(
+    (supplierId: string, text: string): SaveHistoryResult => {
+      const group = supplierDraftSummary(currentOrder.items, supplierId, getProductById, getSupplierById, resolveSupplierWorkflow).groups[0];
+      if (!group || group.lines.length === 0) return { ok: false, reason: 'empty' };
+      if (isKeyBlocked(ORDER_HISTORY_KEY)) return { ok: false, reason: 'blocked' };
+      const { doc, existing } = withSnapshot(orderHistoryRef.current, snapshotFromGroup(group, text));
+      if (existing) return { ok: true, entry: existing, duplicate: true };
+      if (!commitHistory(doc)) return { ok: false, reason: isKeyBlocked(ORDER_HISTORY_KEY) ? 'blocked' : 'write-failed' };
+      return { ok: true, entry: doc.entries[0], duplicate: false };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentOrder.items, getProductById, getSupplierById],
+  );
+
+  const setHistoryStatus = useCallback((id: string, status: HistoryStatus) => commitHistory(withStatus(orderHistoryRef.current, id, status)), []);
+  const removeHistoryEntry = useCallback((id: string) => commitHistory(withoutEntry(orderHistoryRef.current, id)), []);
+
+  const reuseHistoryOrder = useCallback(
+    (id: string) => {
+      const entry = orderHistoryRef.current.entries.find(e => e.id === id);
+      if (!entry) return { added: 0, missing: 0 };
+      const lines = entry.lines.filter(line => products.some(p => p.id === line.productId && p.supplierId === entry.supplierId));
+      setCurrentOrder(prev => ({
+        ...prev,
+        items: [
+          ...prev.items.filter(item => products.find(p => p.id === item.productId)?.supplierId !== entry.supplierId),
+          ...lines.map(line => (line.unit === 'item' ? { productId: line.productId, quantity: line.quantity, unit: 'item' as const } : { productId: line.productId, quantity: line.quantity })),
+        ],
+      }));
+      return { added: lines.length, missing: entry.lines.length - lines.length };
+    },
+    [products],
+  );
+
   const updateProduct = useCallback((productData: Product) => {
     setProducts(prev => prev.map(p => (p.id === productData.id ? productData : p)));
     audioManager.play('add');
@@ -481,6 +574,13 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     getWorkflow,
     getStock,
     saveStockCount,
+    addProducts,
+    orderHistory: orderHistoryDoc.entries,
+    historyAvailable,
+    saveOrderToHistory,
+    setHistoryStatus,
+    removeHistoryEntry,
+    reuseHistoryOrder,
   };
 
   return (

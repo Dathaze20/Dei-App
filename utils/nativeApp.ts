@@ -29,6 +29,8 @@ export interface DeliNativePlugin {
   downloadUpdate(options: { url: string; sha256: string | null; versionCode: number }): Promise<{ sha256: string; verifiedDigest: boolean }>;
   installUpdate(): Promise<void>;
   saveTextFile(options: { fileName: string; text: string; mimeType?: string }): Promise<{ saved: boolean }>;
+  /** Added in v0.1.3: the product id of a deliordernyc://product/<id> link, once. */
+  consumeProductLink(): Promise<{ productId: string | null }>;
   addListener(event: 'updateProgress', listener: (progress: { received: number; total: number }) => void): Promise<PluginListenerHandle>;
 }
 

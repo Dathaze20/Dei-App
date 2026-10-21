@@ -11,13 +11,13 @@ import { buildOrderSummary } from '../../utils/orderSummary';
 import ConfirmSheet from '../ui/ConfirmSheet';
 import EmptyState from '../ui/EmptyState';
 import { ui } from '../ui/styles';
-import { ShoppingCartIcon, StorefrontIcon, TrashIcon } from '../shared/icons';
+import { ArchiveBoxIcon, ShoppingCartIcon, StorefrontIcon, TrashIcon } from '../shared/icons';
 import ShareSheet from './ShareSheet';
 import SupplierOrderPanel from './SupplierOrderPanel';
 import { money } from './OrderLines';
 
 const CounterOrders: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ onSelectSupplier }) => {
-  const { currentOrder, getProductById, getSupplierById, getWorkflow, clearOrder } = useInventory();
+  const { currentOrder, getProductById, getSupplierById, getWorkflow, clearOrder, orderHistory } = useInventory();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [sharing, setSharing] = useState<string | null>(null);
@@ -32,8 +32,16 @@ const CounterOrders: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ o
     navigate('/counter');
   };
 
+  const historyLink = (
+    <button type="button" className={`${ui.secondary} w-full`} onClick={() => navigate('/counter/orders/history')} data-testid="open-history">
+      <ArchiveBoxIcon className="h-5 w-5" /> {t('viewHistory')}
+      {orderHistory.length > 0 && <span className="rounded-full bg-slate-200 px-2 text-xs font-bold dark:bg-white/10">{orderHistory.length}</span>}
+    </button>
+  );
+
   if (currentOrder.items.length === 0) {
     return (
+      <div className="space-y-3">
       <EmptyState
         testId="orders-empty"
         icon={<ShoppingCartIcon className="h-7 w-7" />}
@@ -45,6 +53,8 @@ const CounterOrders: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ o
           </button>
         }
       />
+      {historyLink}
+      </div>
     );
   }
 
@@ -88,6 +98,8 @@ const CounterOrders: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ o
       <button type="button" className={`${ui.dangerQuiet} w-full`} onClick={() => setConfirmClear(true)}>
         <TrashIcon className="h-5 w-5" /> {t('clearOrder')}
       </button>
+
+      {historyLink}
 
       <ShareSheet supplierId={sharing} onClose={() => setSharing(null)} />
       <ConfirmSheet

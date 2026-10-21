@@ -1,17 +1,18 @@
 // components/counter/CounterNav.tsx
 //
-// Bottom navigation for one-handed use: Counter · Orders · Catalog · Menu. It sits fully above the
+// Bottom navigation for one-handed use: Counter · Orders · Catalog. Settings, backup and help are
+// in the menu (the ☰ button in the header), so they are not repeated here. It sits fully above the
 // Android gesture bar and grows with larger text.
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
-import { Bars3Icon, ShoppingCartIcon, Squares2X2Icon, StorefrontIcon } from '../shared/icons';
+import { ShoppingCartIcon, Squares2X2Icon, StorefrontIcon } from '../shared/icons';
 
 const item = 'relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-xs font-semibold';
 const tone = (active: boolean) => (active ? 'text-cyan-600 dark:text-cyan-300' : 'text-slate-600 dark:text-slate-300');
 
-const CounterNav: React.FC<{ onMenu: () => void }> = ({ onMenu }) => {
+const CounterNav: React.FC = () => {
   const { currentOrder } = useInventory();
   const { t } = useTranslation();
   const lines = currentOrder.items.length;
@@ -39,10 +40,6 @@ const CounterNav: React.FC<{ onMenu: () => void }> = ({ onMenu }) => {
             )}
           </NavLink>
         ))}
-        <button type="button" onClick={onMenu} className={`${item} ${tone(false)}`} aria-label={t('openMenu')}>
-          <Bars3Icon className="h-6 w-6" />
-          <span className="max-w-full truncate px-1 leading-tight">{t('navMenu')}</span>
-        </button>
       </div>
     </nav>
   );

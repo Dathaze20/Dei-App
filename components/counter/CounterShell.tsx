@@ -19,6 +19,7 @@ import { useDevicePrefs } from '../../hooks/useDevicePrefs';
 import { useTranslation } from '../../hooks/useTranslation';
 import { withSupplierChosen } from '../../utils/devicePrefs';
 import { StartupNotice } from '../../utils/safetyBootstrap';
+import { DeliNative, isAndroidApp } from '../../utils/nativeApp';
 import { ToastProvider, useToast } from '../ui/Toast';
 import CounterDrawer from './CounterDrawer';
 import CounterCatalog from './CounterCatalog';
@@ -26,6 +27,7 @@ import CounterHome from './CounterHome';
 import CounterOrders from './CounterOrders';
 import CounterSettings from './CounterSettings';
 import CounterNav from './CounterNav';
+import OrderHistory from './OrderHistory';
 import CounterTopBar from './CounterTopBar';
 
 /** #/product/<id> from a shelf-tag QR code: open that product on Counter. */
@@ -52,6 +54,28 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
   const onHome = location.pathname === '/counter' || location.pathname === '/counter/';
 
   const selectSupplier = (id: string) => setPrefs(p => withSupplierChosen(p, id));
+
+  // Android: a shelf-tag link (deliordernyc://product/<id>) that opened the app, or arrived while
+  // it was open, is picked up from the native side and opened like a #/product/<id> address.
+  useEffect(() => {
+    if (!isAndroidApp()) return;
+    const pick = () => {
+      DeliNative.consumeProductLink()
+        .then(({ productId }) => {
+          if (productId) navigate('/counter', { state: { openProduct: productId } });
+        })
+        .catch(() => undefined);
+    };
+    const onVisible = () => document.visibilityState === 'visible' && pick();
+    (window as Window & { deliProductLink?: () => void }).deliProductLink = pick;
+    pick();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      delete (window as Window & { deliProductLink?: () => void }).deliProductLink;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Shelf-tag links: show the product's supplier and open the product.
   useEffect(() => {
@@ -95,7 +119,14 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
       if (searchOpen) {
         setQuery('');
         setSearchOpen(false);
-      } else navigate('/counter', { replace: true });
+        return true;
+      }
+      // Read the address now, not from the last render: a second quick Back after reaching
+      // Counter must leave the app, even before the screen has finished drawing.
+      const path = window.location.hash.replace(/^#/, '').replace(/\/$/, '');
+      if (path === '/counter') return false;
+      navigate(path === '/counter/orders/history' ? '/counter/orders' : '/counter', { replace: true });
+      return true;
     },
     'screen',
   );
@@ -130,6 +161,7 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
             }
           />
           <Route path="/counter/orders" element={<CounterOrders onSelectSupplier={selectSupplier} />} />
+          <Route path="/counter/orders/history" element={<OrderHistory onSelectSupplier={selectSupplier} />} />
           <Route path="/counter/catalog" element={<CounterCatalog />} />
           <Route path="/counter/settings" element={<CounterSettings />} />
           {/* Addresses from before C2.3 (Classic View) and shelf-tag QR codes. */}
@@ -139,7 +171,7 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
           <Route path="*" element={<Navigate to="/counter" replace />} />
         </Routes>
       </main>
-      <CounterNav onMenu={() => setMenuOpen(true)} />
+      <CounterNav />
       <CounterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
   );

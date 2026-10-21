@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode, useContext, useCallback } from 'react';
 import { guardedSetItem, readTracked } from '../utils/storageGuard';
 import { counterStrings } from './counterStrings';
+import { toolkitStrings } from './toolkitStrings';
 
 type Language = 'en' | 'es' | 'ar';
 type Direction = 'ltr' | 'rtl';
@@ -8,6 +9,7 @@ type Direction = 'ltr' | 'rtl';
 export const translations = {
   en: {
     ...counterStrings.en,
+    ...toolkitStrings.en,
     "deliBrainOfStore": "The brain of the store.",
     "products": "Products",
     "history": "History",
@@ -307,6 +309,7 @@ export const translations = {
   },
   es: {
     ...counterStrings.es,
+    ...toolkitStrings.es,
     "deliBrainOfStore": "El cerebro de la tienda.",
     "products": "Productos",
     "history": "Historial",
@@ -606,6 +609,7 @@ export const translations = {
   },
   ar: {
     ...counterStrings.ar,
+    ...toolkitStrings.ar,
     "deliBrainOfStore": "عقل المتجر.",
     "products": "المنتجات",
     "history": "السجل",

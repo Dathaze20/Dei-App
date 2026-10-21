@@ -75,8 +75,8 @@ test.describe('works without internet (production build)', () => {
     await seed(page, {});
     // The first product row's picture (offline, the tidy placeholder is shown in its place).
     const thumb = page.getByTestId('counter-row').first().locator('img, [data-testid="product-thumb-placeholder"]').first();
-    await expect(thumb).toHaveCSS('width', '44px'); // w-11
-    await expect(thumb).toHaveCSS('border-radius', '8px'); // rounded-lg
+    await expect(thumb).toHaveCSS('width', '84px'); // .row-thumb at 412px (v0.1.3)
+    await expect(thumb).toHaveCSS('border-radius', '12px'); // rounded-xl
     // The current supplier: the cyan-to-blue pill.
     const current = page.getByTestId('current-supplier');
     await expect(current).toHaveCSS('background-image', /linear-gradient/);

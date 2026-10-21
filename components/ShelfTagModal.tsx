@@ -14,7 +14,13 @@ interface ShelfTagModalProps {
 const ShelfTagModal: React.FC<ShelfTagModalProps> = ({ product, isOpen, onClose }) => {
   const { t } = useTranslation();
   const tagRef = useRef<HTMLDivElement>(null);
-  const deepLink = `${window.location.origin}${window.location.pathname}#/product/${product.id}`;
+  // In the Android app the page's own address is https://localhost, which no other phone or camera
+  // can open, so the code carries the app's link instead: Android hands deliordernyc://product/<id>
+  // to DeliOrderNYC on any phone that has it installed. The web version keeps its web address.
+  const android = isAndroidApp();
+  const deepLink = android
+    ? `deliordernyc://product/${encodeURIComponent(product.id)}`
+    : `${window.location.origin}${window.location.pathname}#/product/${product.id}`;
 
   const handlePrint = () => {
     const printContents = tagRef.current?.innerHTML;
@@ -52,10 +58,9 @@ const ShelfTagModal: React.FC<ShelfTagModalProps> = ({ product, isOpen, onClose 
           </div>
         </div>
 
-        {isAndroidApp() ? (
-          // The Android app cannot print, and its QR codes point at the app's own private
-          // address (https://localhost), which a camera cannot open. Say so instead of offering
-          // a Print button that would only reload the app (docs/C2.3_NOTES.md).
+        {android ? (
+          // The Android WebView cannot print: say so instead of offering a Print button that would
+          // only reload the app (docs/V0.1.3_NOTES.md).
           <p className="text-center text-sm text-slate-600 dark:text-slate-300" data-testid="shelf-tag-android-note">{t('shelfTagAndroidNote')}</p>
         ) : (
         <button

@@ -36,7 +36,8 @@ import java.util.concurrent.Executors;
  * - report the installed version (for "Check for updates");
  * - download an approved update APK from this repository's GitHub Releases, verify it, and hand it
  *   to Android's own installer (the person always confirms; nothing installs silently);
- * - save a backup file through Android's "Save to…" screen (WebView has no browser downloads).
+ * - save a backup file through Android's "Save to…" screen (WebView has no browser downloads);
+ * - hand over a product id from a shelf-tag link (deliordernyc://product/<id>).
  */
 @CapacitorPlugin(name = "DeliNative")
 public class DeliNativePlugin extends Plugin {
@@ -57,6 +58,17 @@ public class DeliNativePlugin extends Plugin {
     private String pendingSaveText;
 
     // --- Installed version --------------------------------------------------------------------
+
+    // --- Shelf-tag links ----------------------------------------------------------------------
+
+    /** The product id of the shelf-tag link that opened the app, once; null when there is none. */
+    @PluginMethod
+    public void consumeProductLink(PluginCall call) {
+        JSObject result = new JSObject();
+        String id = MainActivity.takePendingProductId();
+        result.put("productId", id == null ? JSObject.NULL : id);
+        call.resolve(result);
+    }
 
     @PluginMethod
     public void getAppInfo(PluginCall call) {

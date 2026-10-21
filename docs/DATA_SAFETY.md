@@ -267,3 +267,15 @@ Before this PR, the last page to save silently won. With a single tab, nothing c
 6. **Browsers without Web Locks** fall back to the storage-event signal between tabs, which doesn't
    stop two restores started at exactly the same moment. Current Chrome on Android and Safari
    support Web Locks.
+
+## Added in v0.1.3
+
+| Storage | What | Backed up? |
+|---|---|---|
+| `inventory_orderHistory` (localStorage) | Saved orders (utils/orderHistory.ts). Validated like products and counts: an unreadable history is left untouched and never saved over. A backup with a damaged history is refused. | Yes. It is an ordinary deli data key: exported, snapshotted before a restore, and restored. v0.1.2 keeps it as an unknown app key, so restoring a v0.1.3 backup on v0.1.2 does not lose it. |
+| `deliordernyc_sys_backupLog` (localStorage) | When a backup was last created, saved (confirmed by Android), started (browser download), shared, copied, or failed; and "Not now" for the reminder. | No. It is a system key, so restoring a backup never makes the phone look backed up. |
+| IndexedDB `deliordernyc-photos` | Product photos, resized to at most 480px JPEG (about 30–60 KB each). | **Not in the main backup file**, which is unchanged. Settings › Product photos exports and imports them as their own file. Export My Data says how many photos are not in the file. |
+
+Products point at a photo with `imageUrl: "photo:<id>"`. If the photo is missing, for example after a restore on another phone without importing the photo file, the product shows its label tile instead. Nothing breaks, and nothing is deleted.
+
+Bulk import (Catalog › Import products) only adds products. It never changes or deletes an existing product, count or order, and it adds nothing until the person confirms the preview.
