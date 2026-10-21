@@ -10,6 +10,7 @@
 
 import { KNOWN_STORAGE_KEYS } from './dataExport';
 import { validateStockCountsValue } from './stockCounts';
+import { ORDER_HISTORY_KEY, validateOrderHistoryValue } from './orderHistory';
 
 export interface ValidationResult {
   ok: boolean;
@@ -96,11 +97,16 @@ export const validateOrder = (value: unknown): ValidationResult => {
 
 export const validateStockCounts = (value: unknown): ValidationResult => result(validateStockCountsValue(value));
 
+export const validateOrderHistory = (value: unknown): ValidationResult => result(validateOrderHistoryValue(value));
+
 const JSON_VALIDATORS: Record<string, (value: unknown) => ValidationResult> = {
   [KNOWN_STORAGE_KEYS.stockCounts.key]: validateStockCounts,
   [KNOWN_STORAGE_KEYS.products.key]: validateProducts,
   [KNOWN_STORAGE_KEYS.suppliers.key]: validateSuppliers,
   [KNOWN_STORAGE_KEYS.currentOrder.key]: validateOrder,
+  // Added in v0.1.3 (utils/orderHistory.ts). Older backups do not have it; older app versions
+  // keep and restore it as an unknown app key.
+  [ORDER_HISTORY_KEY]: validateOrderHistory,
 };
 
 /** True for keys whose stored text must be JSON of a specific shape. */

@@ -20,11 +20,16 @@ import { lineUnit } from '../../utils/supplierWorkflow';
 import Segmented from '../ui/Segmented';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
-import { ArrowsPointingInIcon, ChevronRightIcon, ChevronUpDownIcon, ListBulletIcon } from '../shared/icons';
+import { ArrowsPointingInIcon, ChevronRightIcon, ChevronUpDownIcon, ListBulletIcon, Squares2X2Icon } from '../shared/icons';
+import EmptyState from '../ui/EmptyState';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../ui/Toast';
 import { useDevicePrefs } from '../../hooks/useDevicePrefs';
 import { quickSuppliers, withFavoriteToggled, withSupplierChosen, WorkMode } from '../../utils/devicePrefs';
+import { attentionList } from '../../utils/attention';
 import SupplierSelector from './SupplierSelector';
+import AttentionCard from './AttentionCard';
+import BackupReminder from './BackupReminder';
 import CounterGroup from './CounterGroup';
 import CounterRow, { RowMode } from './CounterRow';
 import CountSheet from './CountSheet';
@@ -57,14 +62,17 @@ const SECTION_SCROLL = 'scroll-mt-[calc(var(--safe-top)+var(--header-h)+7.5rem)]
 const SECTION_KEYS = { meats: 'listMeats', cheeses: 'listCheeses', other: 'listOther' } as const;
 
 const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSupplier, mode, onMode, toggled, onToggled, openProductId, onProductOpened }) => {
-  const { products, suppliers, currentOrder, getProductById, getSupplierById, addToOrder, updateOrderItemQuantity, removeFromOrder, getWorkflow } = useInventory();
+  const { products, suppliers, currentOrder, getProductById, getSupplierById, addToOrder, updateOrderItemQuantity, removeFromOrder, getWorkflow, getStock } = useInventory();
   const { t } = useTranslation();
   const [selected, setSelected] = useState<Product | null>(null);
   const [countingId, setCountingId] = useState<string | null>(null);
+  // Counting from "Needs attention" follows that list instead of the screen.
+  const [countOrder, setCountOrder] = useState<string[] | null>(null);
   const [trayOpen, setTrayOpen] = useState(false);
   const [sharing, setSharing] = useState<string | null>(null);
   const [jumpOpen, setJumpOpen] = useState(false);
   const toast = useToast();
+  const navigate = useNavigate();
   const [prefs, setPrefs] = useDevicePrefs();
 
   const sortedSuppliers = useMemo(() => [...suppliers].sort((a, b) => a.name.localeCompare(b.name)), [suppliers]);
@@ -172,8 +180,14 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
 
   const startCount = (product: Product) => {
     setSelected(null);
+    setCountOrder(null);
     setCountingId(product.id);
   };
+
+  const attention = useMemo(
+    () => (search || !activeWorkflow.countStock ? [] : attentionList(products.filter(p => p.supplierId === activeId), getStock)),
+    [search, activeWorkflow.countStock, products, activeId, getStock],
+  );
 
   const isList = activeWorkflow.orderStyle === 'items';
   const trayTotals = trayGroup ? groupTotals(trayGroup) : null;
@@ -224,10 +238,34 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
 
       {search && <p className="px-1 text-sm text-slate-500 dark:text-slate-400" role="status">{t('searchResultsCount', { count: resultCount })}</p>}
 
+      {!search && <BackupReminder />}
+      {!search && (
+        <AttentionCard
+          items={attention}
+          onCount={(product, ids) => {
+            setSelected(null);
+            setCountOrder(ids);
+            setCountingId(product.id);
+          }}
+        />
+      )}
+
       {groups.length === 0 ? (
-        <p className="py-12 text-center text-slate-500 dark:text-slate-400">
-          {search ? t('noProductsMatch', { query: `"${query.trim()}"` }) : t('noProductsForSupplier')}
-        </p>
+        search ? (
+          <p className="py-12 text-center text-slate-500 dark:text-slate-400">{t('noProductsMatch', { query: `"${query.trim()}"` })}</p>
+        ) : (
+          <EmptyState
+            testId="supplier-empty"
+            icon={<Squares2X2Icon className="h-7 w-7" />}
+            title={t('noProductsYetFor', { supplier: getSupplierById(activeId)?.name ?? '' })}
+            message={t('noProductsYetHelp')}
+            action={
+              <button type="button" className={ui.primary} onClick={() => navigate('/counter/catalog')}>
+                <Squares2X2Icon className="h-5 w-5" /> {t('openCatalog')}
+              </button>
+            }
+          />
+        )
       ) : (
         groups.map(group => (
           <CounterGroup
@@ -321,8 +359,11 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
       <ProductSheet product={selected} onClose={() => setSelected(null)} onCount={startCount} />
       <CountSheet
         productId={countingId}
-        orderedIds={countingId && orderedIds.includes(countingId) ? orderedIds : countingId ? [countingId] : []}
-        onClose={() => setCountingId(null)}
+        orderedIds={countOrder ?? (countingId && orderedIds.includes(countingId) ? orderedIds : countingId ? [countingId] : [])}
+        onClose={() => {
+          setCountingId(null);
+          setCountOrder(null);
+        }}
         onMove={setCountingId}
         onSaved={message => toast(message)}
       />

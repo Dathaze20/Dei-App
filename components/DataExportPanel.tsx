@@ -3,6 +3,10 @@ import { motion } from 'framer-motion';
 import { useTranslation } from '../hooks/useTranslation';
 import { ArrowDownTrayIcon, CheckCircleIcon, ClipboardListIcon, ShareIcon, AlertTriangleIcon } from './shared/icons';
 import { saveTextFile } from '../utils/fileDownload';
+import { recordBackupEvent } from '../utils/backupLog';
+import useInventory from '../hooks/useInventory';
+import { PHOTO_PREFIX } from '../utils/productImage';
+import BackupStatus from './BackupStatus';
 import {
   DataExport,
   StorageClassification,
@@ -43,6 +47,8 @@ const buttonBase = 'flex items-center justify-center gap-2 font-bold py-3 px-4 r
  */
 const DataExportPanel: React.FC = () => {
   const { t } = useTranslation();
+  const { products } = useInventory();
+  const photoCount = products.filter(p => p.imageUrl?.startsWith(PHOTO_PREFIX)).length;
   const [isWorking, setIsWorking] = useState(false);
   const [result, setResult] = useState<ExportState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +87,7 @@ const DataExportPanel: React.FC = () => {
       const text = serializeExport(exported);
       const verification = await verifyExportText(text, storage);
       setResult({ exported, text, fileName: exportFileName(now), verification });
+      recordBackupEvent('generated');
     } catch (e) {
       setResult(null);
       setError(t('exportFailed', { message: e instanceof Error ? e.message : String(e) }));
@@ -95,6 +102,7 @@ const DataExportPanel: React.FC = () => {
     if (outcome === 'started') setStatus(t('exportDownloadStarted', { fileName: result.fileName }));
     else if (outcome === 'saved') setStatus(t('exportSaved', { fileName: result.fileName }));
     else if (outcome === 'failed') setStatus(t('exportFailed', { message: t('exportSaveBlocked') }));
+    if (outcome !== 'cancelled') recordBackupEvent(outcome);
   };
 
   const shareFile = (): File | null => {
@@ -116,6 +124,7 @@ const DataExportPanel: React.FC = () => {
     if (!file) return;
     try {
       await navigator.share({ files: [file], title: result!.fileName });
+      recordBackupEvent('shared');
     } catch (e) {
       // Closing the share sheet is not an error worth showing.
       if (e instanceof Error && e.name === 'AbortError') return;
@@ -127,6 +136,7 @@ const DataExportPanel: React.FC = () => {
     if (!result) return;
     try {
       await navigator.clipboard.writeText(result.text);
+      recordBackupEvent('copied');
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     } catch {
@@ -152,6 +162,12 @@ const DataExportPanel: React.FC = () => {
       <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{t('exportTitle')}</h2>
       <p className="text-sm text-slate-600 dark:text-slate-300">{t('exportDescription')}</p>
       <p className="text-xs text-brand-muted mt-2 break-all">{t('exportOriginNote', { origin: window.location.origin })}</p>
+      <BackupStatus className="mt-3" />
+      {photoCount > 0 && (
+        <p className="mt-2 rounded-md bg-amber-400/10 p-3 text-sm text-amber-800 dark:text-amber-300" data-testid="photos-not-in-backup">
+          {t('photosNotInBackup', { count: photoCount })}
+        </p>
+      )}
 
       {otherKeys.length > 0 && (
         <div className="mt-4 p-3 rounded-md text-sm bg-amber-400/10 text-amber-800 dark:text-amber-300">

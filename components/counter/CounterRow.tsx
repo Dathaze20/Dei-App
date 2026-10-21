@@ -52,7 +52,7 @@ const CounterRow: React.FC<CounterRowProps> = ({ product, mode, quantity, olderC
     <div
       data-testid="counter-row"
       data-product={product.id}
-      className={`row-pad flex flex-wrap items-center gap-x-2.5 gap-y-1 py-2 ps-2 pe-1.5 border-s-2 transition-colors ${
+      className={`row-pad flex items-center gap-x-3 py-2 ps-2 pe-1.5 border-s-2 transition-colors ${
         selected ? 'border-teal-500 bg-teal-500/[0.06] dark:bg-teal-400/[0.07]' : 'border-transparent'
       }`}
     >
@@ -64,7 +64,7 @@ const CounterRow: React.FC<CounterRowProps> = ({ product, mode, quantity, olderC
           aria-label={t('onTheList', { name: label })}
           whileTap={{ scale: 0.9 }}
           onClick={() => (selected ? onUncheck(product) : onAdd(product))}
-          className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center"
+          className="-me-1.5 inline-flex h-11 w-11 flex-shrink-0 items-center justify-center"
         >
           <span className={`flex h-7 w-7 items-center justify-center rounded-lg ring-2 transition-colors ${
             selected ? 'bg-teal-500 text-white ring-teal-500 dark:bg-teal-400 dark:text-slate-950 dark:ring-teal-400' : 'ring-slate-300 dark:ring-white/25'
@@ -73,43 +73,49 @@ const CounterRow: React.FC<CounterRowProps> = ({ product, mode, quantity, olderC
           </span>
         </motion.button>
       )}
-      <ProductThumb product={product} className="row-thumb h-11 w-11 rounded-lg" onClick={() => onOpen(product)} />
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => onOpen(product)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(product); } }}
-        aria-label={t('productDetailsFor', { name: label })}
-        className="min-w-0 flex-1 basis-[8.5rem] cursor-pointer text-start rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
-      >
-        {/* Up to two lines: the flavor is often what tells two products apart ("Caution Extreme
-            Fruit Punch" / "Caution Extreme Performance"), so it is never cut to one line. */}
-        <p dir="auto" className="line-clamp-2 break-words rtl:text-right text-[0.9375rem] font-semibold leading-snug text-slate-900 dark:text-slate-50" data-testid="row-name">{primary}</p>
-        {/* Compact density puts these two on one line (index.css, .row-meta). */}
-        <div className="row-meta">
-          {secondary && <p dir="auto" className="truncate rtl:text-right text-xs leading-snug text-slate-500 dark:text-slate-400">{secondary}</p>}
-          <StockLabel product={product} className="mt-0.5 leading-snug" />
+      {/* The picture leads: it is what is recognised first at the counter (index.css, .row-thumb). */}
+      <ProductThumb product={product} className="row-thumb rounded-xl" onClick={() => onOpen(product)} />
+      {/* Name and action share what is left; when the text is large the action moves beneath the
+          name instead of squeezing it. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1.5">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onOpen(product)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(product); } }}
+          aria-label={t('productDetailsFor', { name: label })}
+          className="min-w-0 flex-1 basis-[7.5rem] cursor-pointer text-start rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+        >
+          {/* Up to two lines: the flavor is often what tells two products apart ("Caution Extreme
+              Fruit Punch" / "Caution Extreme Performance"), so it is never cut to one line. */}
+          <p dir="auto" className="line-clamp-2 break-words rtl:text-right text-[0.9375rem] font-semibold leading-snug text-slate-900 dark:text-slate-50" data-testid="row-name">{primary}</p>
+          {/* Compact density puts these two on one line (index.css, .row-meta). */}
+          <div className="row-meta">
+            {secondary && <p dir="auto" className="truncate rtl:text-right text-[0.8125rem] leading-snug text-slate-500 dark:text-slate-400">{secondary}</p>}
+            <StockLabel product={product} className="mt-0.5 leading-snug" />
+          </div>
+          {olderCaseQuantity > 0 && (
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">{t('olderCasesNote', { quantity: olderCaseQuantity })}</p>
+          )}
         </div>
-        {olderCaseQuantity > 0 && (
-          <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">{t('olderCasesNote', { quantity: olderCaseQuantity })}</p>
+        {mode === 'count' ? (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.94 }}
+            onClick={() => onCount(product)}
+            aria-label={t('countFor', { name: label })}
+            data-testid="row-count"
+            className="ms-auto inline-flex min-h-11 min-w-11 flex-shrink-0 flex-col items-center justify-center rounded-xl bg-cyan-600 px-2 py-1 text-white shadow-md shadow-cyan-600/20 dark:bg-cyan-400 dark:text-slate-950"
+          >
+            <CalculatorIcon className="h-5 w-5" />
+            <span className="text-[0.6875rem] font-bold leading-tight">{t('countShort')}</span>
+          </motion.button>
+        ) : mode === 'list' && !selected ? null : (
+          <div className="ms-auto flex-shrink-0">
+            <CounterStepper quantity={quantity} name={label} onAdd={() => onAdd(product)} onRemove={() => onRemove(product)} />
+          </div>
         )}
       </div>
-      {mode === 'count' ? (
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.94 }}
-          onClick={() => onCount(product)}
-          aria-label={t('countFor', { name: label })}
-          className="ms-auto inline-flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-xl bg-cyan-600 px-3 text-sm font-bold text-white shadow-md shadow-cyan-600/20 dark:bg-cyan-400 dark:text-slate-950"
-        >
-          <CalculatorIcon className="h-5 w-5" />
-          <span>{t('countShort')}</span>
-        </motion.button>
-      ) : mode === 'list' && !selected ? null : (
-        <div className="ms-auto flex-shrink-0">
-          <CounterStepper quantity={quantity} name={label} onAdd={() => onAdd(product)} onRemove={() => onRemove(product)} />
-        </div>
-      )}
     </div>
   );
 };

@@ -5,15 +5,21 @@
 // Editing keeps everything not shown here (such as the old stock number) exactly as it was.
 // Delete asks first and uses the same safety as Classic View: a product whose verified counts
 // cannot be kept safely is not deleted, and the reason is shown.
-import React, { useEffect, useState } from 'react';
+// Picture: choose or take a photo (the system picker; the app asks for nothing until the camera is
+// actually used). It is made smaller and kept on this phone (utils/photoStore.ts); the product
+// then points at it with "photo:<id>".
+import React, { useEffect, useRef, useState } from 'react';
 import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Product } from '../../types';
+import ProductThumb from '../ProductThumb';
 import ShelfTagModal from '../ShelfTagModal';
+import { PHOTO_PREFIX } from '../../utils/productImage';
+import { resizeImageFile, savePhoto } from '../../utils/photoStore';
 import ConfirmSheet from '../ui/ConfirmSheet';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
-import { QrCodeIcon, TrashIcon } from '../shared/icons';
+import { CameraIcon, PhotoIcon, QrCodeIcon, TrashIcon } from '../shared/icons';
 
 type Fields = Record<'name' | 'flavor' | 'category' | 'supplierId' | 'size' | 'unitsPerCase' | 'reorderThresholdUnits' | 'costPrice' | 'retailPrice' | 'upc' | 'imageUrl', string>;
 
@@ -48,6 +54,9 @@ const ProductEditorSheet: React.FC<ProductEditorSheetProps> = ({ product, onClos
   const [problem, setProblem] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showTag, setShowTag] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const chooseInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
   const editing = products.find(p => p.id === product?.id);
 
   useEffect(() => {
@@ -60,6 +69,30 @@ const ProductEditorSheet: React.FC<ProductEditorSheetProps> = ({ product, onClos
     setFields(prev => ({ ...prev, [key]: event.target.value }));
     setProblem(null);
   };
+
+  const addPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setPhotoBusy(true);
+    setProblem(null);
+    let data: string;
+    try {
+      data = await resizeImageFile(file);
+    } catch {
+      setPhotoBusy(false);
+      return setProblem(t('photoFailed'));
+    }
+    try {
+      const id = await savePhoto(data);
+      setFields(prev => ({ ...prev, imageUrl: `${PHOTO_PREFIX}${id}` }));
+    } catch {
+      setProblem(t('photoStorageFailed'));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+  const isPhoto = fields.imageUrl.startsWith(PHOTO_PREFIX);
 
   const save = (event: React.FormEvent) => {
     event.preventDefault();
@@ -158,8 +191,37 @@ const ProductEditorSheet: React.FC<ProductEditorSheetProps> = ({ product, onClos
             {field('costPrice', t('costPerCaseLabel'), { inputMode: 'decimal' })}
             {field('retailPrice', t('retailPriceLabel'), { inputMode: 'decimal' })}
             {field('upc', t('upcLabel'), { inputMode: 'numeric' })}
-            <div className="sm:col-span-2">{field('imageUrl', t('imageUrlLabel'), { inputMode: 'url' })}</div>
           </div>
+          <fieldset className="space-y-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10" data-testid="editor-picture">
+            <legend className={`${ui.label} float-start mb-1`}>{t('productPicture')}</legend>
+            <div className="clear-both flex flex-wrap items-center gap-3">
+              <ProductThumb
+                product={{ name: fields.name || '?', flavor: fields.flavor, imageUrl: fields.imageUrl }}
+                alt=""
+                className="h-[84px] w-[84px] rounded-xl"
+              />
+              <div className="flex min-w-0 flex-1 basis-40 flex-col gap-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{photoBusy ? t('photoSaving') : isPhoto ? t('pictureIsPhoto') : !fields.imageUrl ? t('pictureIsTile') : ''}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={ui.secondary} disabled={photoBusy} onClick={() => chooseInput.current?.click()}>
+                    <PhotoIcon className="h-5 w-5" /> {t('choosePhoto')}
+                  </button>
+                  <button type="button" className={ui.secondary} disabled={photoBusy} onClick={() => cameraInput.current?.click()}>
+                    <CameraIcon className="h-5 w-5" /> {t('takePhoto')}
+                  </button>
+                  {isPhoto && (
+                    <button type="button" className={ui.ghost} onClick={() => setFields(prev => ({ ...prev, imageUrl: editing?.imageUrl?.startsWith(PHOTO_PREFIX) ? '' : editing?.imageUrl ?? '' }))}>
+                      {t('removePhoto')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <input ref={chooseInput} type="file" accept="image/*" className="hidden" onChange={addPhoto} data-testid="photo-choose-input" />
+            <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={addPhoto} />
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t('photoHelp')}</p>
+            {!isPhoto && field('imageUrl', t('imageUrlLabel'), { inputMode: 'url' })}
+          </fieldset>
         </form>
 
         {editing && (

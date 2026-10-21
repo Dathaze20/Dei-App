@@ -21,6 +21,8 @@ import {
   SwatchIcon,
   UserCircleIcon,
   XIcon,
+  ArchiveBoxIcon,
+  PhotoIcon,
 } from '../shared/icons';
 
 const row =
@@ -40,7 +42,9 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
 
   const goTo = (section: string) => {
     onClose();
-    navigate('/counter/settings', { state: { section } });
+    // Entries starting with "/" are screens (Order history); the others are Settings sections.
+    if (section.startsWith('/')) navigate(section);
+    else navigate('/counter/settings', { state: { section } });
   };
   const from = dir === 'rtl' ? '100%' : '-100%';
 
@@ -79,7 +83,7 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
                   [
                     ['menuGroupStore', [['settings-store', t('storeProfile'), UserCircleIcon]]],
                     ['menuGroupPreferences', [['settings-display', t('appearance'), SwatchIcon]]],
-                    ['menuGroupData', [['settings-backup', t('menuBackup'), ArrowDownTrayIcon], ['settings-restore', t('menuRestore'), ArrowUturnLeftIcon]]],
+                    ['menuGroupData', [['settings-backup', t('menuBackup'), ArrowDownTrayIcon], ['settings-photos', t('productPhotos'), PhotoIcon], ['settings-restore', t('menuRestore'), ArrowUturnLeftIcon], ['/counter/orders/history', t('orderHistory'), ArchiveBoxIcon]]],
                     ['menuGroupApp', [['settings-updates', t('menuUpdates'), SparklesIcon], ['settings-about', t('aboutApp'), InformationCircleIcon]]],
                   ] as const
                 ).map(([group, entries]) => (

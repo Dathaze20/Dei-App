@@ -13,9 +13,10 @@ import ProductThumb from '../ProductThumb';
 import SupplierForm from '../SupplierForm';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
-import { MagnifyingGlassIcon, PlusIcon, XIcon } from '../shared/icons';
+import { ArrowUturnLeftIcon, MagnifyingGlassIcon, PlusIcon, XIcon } from '../shared/icons';
 import CounterGroup from './CounterGroup';
 import ProductEditorSheet from './ProductEditorSheet';
+import ImportSheet from './ImportSheet';
 
 const NO_SUPPLIER = '__none__';
 
@@ -28,6 +29,7 @@ const CounterCatalog: React.FC = () => {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
   const [addingSupplier, setAddingSupplier] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   // "Edit in Catalog" from a product sheet opens that product here.
@@ -85,6 +87,9 @@ const CounterCatalog: React.FC = () => {
           <button type="button" className={ui.secondary} onClick={() => setAddingSupplier(true)}>
             <PlusIcon className="h-5 w-5" /> {t('addSupplier')}
           </button>
+          <button type="button" className={`${ui.secondary} col-span-2`} onClick={() => setImporting(true)} data-testid="open-import">
+            <ArrowUturnLeftIcon className="h-5 w-5 rotate-90" /> {t('importProducts')}
+          </button>
         </div>
         <div className="relative mt-2">
           <MagnifyingGlassIcon className="pointer-events-none absolute start-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
@@ -120,7 +125,7 @@ const CounterCatalog: React.FC = () => {
         >
           {section.items.map(product => (
             <div key={product.id} className="flex items-center gap-3 py-2 ps-3 pe-1.5" data-testid="catalog-product">
-              <ProductThumb product={product} alt="" className="h-11 w-11 rounded-lg" onClick={() => setEditing(product)} />
+              <ProductThumb product={product} alt="" className="h-14 w-14 rounded-xl" onClick={() => setEditing(product)} />
               <button type="button" onClick={() => setEditing(product)} className="min-w-0 flex-1 text-start" aria-label={t('editNamed', { name: [product.name, product.flavor].filter(Boolean).join(' ') })}>
                 {/* The flavor first (the section already names the supplier, often the brand). */}
                 <span dir="auto" className="block truncate font-semibold leading-snug rtl:text-right">{product.flavor || product.name}</span>
@@ -165,6 +170,14 @@ const CounterCatalog: React.FC = () => {
         onClose={() => setEditing(null)}
         onDone={message => {
           setEditing(null);
+          setNotice(message);
+        }}
+      />
+      <ImportSheet
+        open={importing}
+        onClose={() => setImporting(false)}
+        onDone={message => {
+          setImporting(false);
           setNotice(message);
         }}
       />

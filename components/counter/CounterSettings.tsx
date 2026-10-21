@@ -13,6 +13,7 @@ import { AppInfo, DeliNative, isAndroidApp } from '../../utils/nativeApp';
 import AppUpdatePanel from '../AppUpdatePanel';
 import DataExportPanel from '../DataExportPanel';
 import RestorePanel from '../RestorePanel';
+import PhotoBackupPanel from './PhotoBackupPanel';
 import Segmented from '../ui/Segmented';
 import { ui } from '../ui/styles';
 import { InformationCircleIcon, SparklesIcon, SwatchIcon, UserCircleIcon } from '../shared/icons';
@@ -118,6 +119,7 @@ const CounterSettings: React.FC = () => {
       <div id="settings-backup" className="scroll-mt-28">
         <DataExportPanel />
       </div>
+      <PhotoBackupPanel />
       <div id="settings-restore" className="scroll-mt-28">
         <RestorePanel />
       </div>
