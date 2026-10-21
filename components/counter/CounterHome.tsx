@@ -151,10 +151,25 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   useLayoutEffect(() => {
     if (search) return;
     const saved = scrollBySupplier.get(activeId) ?? 0;
-    const frame = requestAnimationFrame(() => window.scrollTo(0, saved));
-    // Also kept on the phone, so the place survives Android closing the app in the background.
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    // Put the list back where it was. Right after a start the list may not be tall enough yet
+    // (slower phones), so keep trying for about a second; stop as soon as the person scrolls.
     let ready = false;
-    const readyTimer = setTimeout(() => (ready = true), 300);
+    let tries = 0;
+    let frame = 0;
+    const restore = () => {
+      window.scrollTo(0, saved);
+      if (Math.abs(window.scrollY - saved) > 2 && tries++ < 60) frame = requestAnimationFrame(restore);
+      else ready = true;
+    };
+    frame = requestAnimationFrame(restore);
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      ready = true;
+    };
+    const interactions = ['touchstart', 'wheel', 'keydown', 'mousedown'] as const;
+    interactions.forEach(type => window.addEventListener(type, stop, { passive: true, once: true }));
+    // Also kept on the phone, so the place survives Android closing the app in the background.
     const onScroll = () => {
       if (!ready) return;
       const y = Math.round(window.scrollY);
@@ -164,7 +179,7 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       cancelAnimationFrame(frame);
-      clearTimeout(readyTimer);
+      interactions.forEach(type => window.removeEventListener(type, stop));
       window.removeEventListener('scroll', onScroll);
       scrollBySupplier.set(activeId, window.scrollY);
     };
