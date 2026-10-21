@@ -10,6 +10,7 @@ const back = (page: Page) => page.evaluate(() => window.deliBack!());
 
 test('Add photos: one product at a time; a saved photo moves on to the next product without one', async ({ page }) => {
   await seed(page, REAL, '/counter/catalog');
+  await page.getByTestId('catalog-more').click();
   await page.getByTestId('open-photo-walk').click();
   const walk = page.getByTestId('photo-walk');
   await expect(walk).toContainText('84 of 84 still without a photo');
@@ -71,9 +72,9 @@ test('last saved order on the supplier, and reusing only the chosen lines', asyn
   await expect(page.getByText(`${lines - 1} lines put in the current order.`)).toBeVisible();
 });
 
-test('the working place (scroll, closed sections) survives the app being closed', async ({ page }) => {
+test('the working place (scroll, chosen pill) survives the app being closed', async ({ page }) => {
   await seed(page, REAL, '/counter');
-  await page.getByTestId('counter-group').first().locator('button').first().click(); // close the first section
+  await page.getByTestId('filter-pill').filter({ hasText: '20 oz. Tall Boy' }).click();
   await page.evaluate(() => window.scrollTo(0, 500));
   await page.waitForTimeout(900);
   const saved = await page.evaluate(() => Math.round(window.scrollY));
@@ -82,7 +83,7 @@ test('the working place (scroll, closed sections) survives the app being closed'
   await expect(page.getByTestId('counter-home')).toBeVisible();
   await page.waitForTimeout(400);
   expect(Math.abs((await page.evaluate(() => window.scrollY)) - saved)).toBeLessThanOrEqual(2);
-  await expect(page.getByTestId('counter-group').first().locator('button').first()).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('filter-pill').filter({ hasText: '20 oz. Tall Boy' })).toHaveAttribute('aria-pressed', 'true');
   // Device-only: never part of the deli data.
   expect(await page.evaluate(() => localStorage.getItem('deliordernyc_sys_place'))).toContain('"scroll"');
 });

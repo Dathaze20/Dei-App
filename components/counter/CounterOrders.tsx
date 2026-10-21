@@ -9,9 +9,8 @@ import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { buildOrderSummary } from '../../utils/orderSummary';
 import ConfirmSheet from '../ui/ConfirmSheet';
-import EmptyState from '../ui/EmptyState';
 import { ui } from '../ui/styles';
-import { ArchiveBoxIcon, ShoppingCartIcon, StorefrontIcon, TrashIcon } from '../shared/icons';
+import { ArchiveBoxIcon, StorefrontIcon, TrashIcon } from '../shared/icons';
 import ShareSheet from './ShareSheet';
 import SupplierOrderPanel from './SupplierOrderPanel';
 import { money } from './OrderLines';
@@ -41,19 +40,15 @@ const CounterOrders: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ o
 
   if (currentOrder.items.length === 0) {
     return (
-      <div className="space-y-3">
-      <EmptyState
-        testId="orders-empty"
-        icon={<ShoppingCartIcon className="h-7 w-7" />}
-        title={t('orderEmptyTitle')}
-        message={t('ordersEmptyHelp')}
-        action={
+      <div className="space-y-3" data-testid="orders-empty">
+        <section className={`${ui.card} space-y-2 p-3`}>
+          <h1 className="text-lg font-extrabold leading-tight">{t('currentOrderTitle')}</h1>
+          <p className={ui.muted}>{t('ordersEmptyShort')}</p>
           <button type="button" className={ui.primary} onClick={() => navigate('/counter')}>
             <StorefrontIcon className="h-5 w-5" /> {t('goToCounter')}
           </button>
-        }
-      />
-      {historyLink}
+        </section>
+        {historyLink}
       </div>
     );
   }

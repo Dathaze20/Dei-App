@@ -15,6 +15,7 @@ import {
   retireProductCounts,
   usedProductIds,
   withCount,
+  withoutCount,
 } from '../utils/stockCounts';
 import {
   HistoryEntry,
@@ -271,6 +272,8 @@ export interface InventoryContextType {
    * after the count is saved in storage. Never writes `inventory_products`.
    */
   saveStockCount: (productId: string, units: number, source: CountSource) => SaveCountResult;
+  /** Undo of counts just saved: removes each only if it is still that product's newest count. */
+  undoStockCounts: (counts: readonly { productId: string; countedAt: string }[]) => boolean;
   /** Adds several new products at once (bulk import). Never changes an existing product. */
   addProducts: (batch: Omit<Product, 'id' | 'currentStockUnits'>[]) => number;
   /** Saved orders, newest first (utils/orderHistory.ts). */
@@ -389,6 +392,13 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     [products],
   );
   
+  const undoStockCounts = useCallback((counts: readonly { productId: string; countedAt: string }[]) => {
+    if (isKeyBlocked(STOCK_COUNTS_KEY)) return false;
+    const next = counts.reduce((doc, c) => withoutCount(doc, c.productId, c.countedAt), stockCountsRef.current);
+    return next === stockCountsRef.current || commitStockCounts(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateDeliName = (newName: string) => {
     setDeliName(newName);
   };
@@ -576,6 +586,7 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     getWorkflow,
     getStock,
     saveStockCount,
+    undoStockCounts,
     addProducts,
     orderHistory: orderHistoryDoc.entries,
     historyAvailable,

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { DEFAULT_PREFS, DEVICE_PREFS_KEY, parsePrefs, quickSuppliers, readPrefs, withFavoriteToggled, withSupplierChosen, writePrefs } from './devicePrefs';
+import { DEFAULT_PREFS, DEVICE_PREFS_KEY, parsePrefs, quickSuppliers, readPrefs, withSupplierChosen, writePrefs } from './devicePrefs';
 import { isSystemKey } from './dataExport';
 
 const store = new Map<string, string>();
@@ -32,14 +32,11 @@ describe('device preferences', () => {
     expect(prefs.recent).toEqual(['sup2', 'sup5', 'sup4', 'sup3']);
   });
 
-  it('pinning toggles; quick suppliers are favourites then recent, existing only, never the current one', () => {
-    let prefs = withFavoriteToggled(DEFAULT_PREFS, 'sup6');
-    prefs = withFavoriteToggled(prefs, 'sup9');
-    prefs = withFavoriteToggled(prefs, 'sup9');
-    expect(prefs.favorites).toEqual(['sup6']);
-    prefs = { ...prefs, recent: ['sup4', 'sup6', 'gone', 'sup1'] };
-    expect(quickSuppliers(prefs, 'sup1', new Set(['sup1', 'sup4', 'sup6']))).toEqual(['sup6', 'sup4']);
+  it('quick suppliers are the recent ones, existing only, never the current one; saved pins are kept but unused', () => {
+    const prefs = { ...DEFAULT_PREFS, favorites: ['sup9'], recent: ['sup4', 'sup6', 'gone', 'sup1'] };
+    expect(quickSuppliers(prefs, 'sup1', new Set(['sup1', 'sup4', 'sup6', 'sup9']))).toEqual(['sup4', 'sup6']);
     expect(quickSuppliers(prefs, 'sup6', new Set(['sup1', 'sup4', 'sup6']), 1)).toEqual(['sup4']);
+    expect(parsePrefs(JSON.stringify(prefs)).favorites).toEqual(['sup9']);
   });
 
   it('read and write round-trip; a phone that refuses to save does not throw', () => {

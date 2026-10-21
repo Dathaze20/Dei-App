@@ -59,7 +59,7 @@ test.describe('counting with the keypad', () => {
     expect(Object.keys((await counts(page)).products).sort()).toEqual(['az_rx_caution_slim11_5', 'az_rx_fruitpunch_slim11_5']);
   });
 
-  test('Save & Next follows the rows on screen, across groups, and skips closed groups', async ({ page }) => {
+  test('Save & Next follows the products on screen, across sizes, and only the chosen pill', async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
     await page.getByTestId('mode-count').click();
     const visibleRows = await page.getByTestId('counter-row').evaluateAll(rows => rows.map(r => r.getAttribute('data-product')));
@@ -70,9 +70,12 @@ test.describe('counting with the keypad', () => {
     await sheet(page).getByRole('button', { name: 'Save & Next' }).click();
     const nextFlavor = await page.locator(`[data-product="${next}"] [role=button] p`).first().textContent();
     await expect(sheet(page).getByRole('heading')).toHaveText(nextFlavor!);
-    // Closed groups (20 oz. Tall Boy starts closed) are never counted by Save & Next.
-    await expect(page.getByTestId('counter-group').filter({ hasText: '20 oz. Tall Boy' }).getByRole('button', { expanded: false })).toBeVisible();
     await expect(sheet(page)).toContainText(`${at + 2} of ${visibleRows.length}`);
+    // With a pill chosen, Save & Next walks only that size.
+    await page.evaluate(() => window.deliBack!());
+    await page.getByTestId('filter-pill').filter({ hasText: '12 oz. Can' }).click();
+    await page.getByTestId('counter-row').first().getByRole('button', { name: /^Count/ }).click();
+    await expect(sheet(page)).toContainText('1 of 10');
   });
 
   test('nothing typed is never 0: Save and Save & Next refuse, nothing is stored, the sheet stays', async ({ page }) => {
@@ -182,6 +185,7 @@ test.describe('ordering by supplier', () => {
   test('Orders: overview, per-supplier sections, Add more returns to that supplier, clearing asks first', async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
     await pickSupplier(page, /Frito-Lay/);
+    await page.getByTestId('filter-pill').filter({ hasText: 'Lays' }).click();
     await row(page, 'BBQ').getByRole('button', { name: /^Add one/ }).click();
     await pickSupplier(page, /Arizona/);
     await page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ }).click();

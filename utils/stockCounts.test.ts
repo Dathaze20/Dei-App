@@ -12,6 +12,7 @@ import {
   usedProductIds,
   validateStockCountsValue,
   withCount,
+  withoutCount,
 } from './stockCounts';
 import { resolveSupplierWorkflow } from './supplierWorkflow';
 
@@ -155,5 +156,16 @@ describe('order line validation (C1 unit field)', () => {
   });
   it('rejects an unknown unit', () => {
     expect(validateStoredValue('inventory_currentOrder', order([{ productId: 'a', quantity: 1, unit: 'lb' }])).ok).toBe(false);
+  });
+});
+
+describe('undo of a count just saved', () => {
+  const count = (units: number, countedAt: string) => ({ units, countedAt, source: 'photo-review' as const, unitsPerCaseAtCount: 12 });
+  it('removes the newest count only when it is still the one that was saved', () => {
+    const before = withCount(emptyStockCounts(), 'p', count(5, '2026-10-01T00:00:00Z'));
+    const after = withCount(before, 'p', count(9, '2026-10-21T00:00:00Z'));
+    expect(withoutCount(after, 'p', '2026-10-21T00:00:00Z').products.p.counts.map(c => c.units)).toEqual([5]);
+    expect(withoutCount(after, 'p', '2026-10-01T00:00:00Z')).toBe(after);
+    expect(withoutCount(withCount(emptyStockCounts(), 'q', count(1, 'x')), 'q', 'x').products).toEqual({});
   });
 });

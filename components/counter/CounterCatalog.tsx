@@ -1,7 +1,7 @@
 // components/counter/CounterCatalog.tsx
 //
-// The Catalog tab: every product, organised by supplier in compact sections, with search across
-// all of them. Tapping a product (or its Edit button) opens the editor, which also has the shelf
+// The Catalog tab: search first, then every product, organised by supplier in compact sections.
+// Add product is the one main button; More holds Add supplier, Add photos and Import CSV. Tapping a product (or its Edit button) opens the editor, which also has the shelf
 // tag and Delete. Suppliers are listed at the end with Add supplier. Every action has a word on
 // it, not just an icon.
 import React, { useEffect, useMemo, useState } from 'react';
@@ -13,7 +13,7 @@ import ProductThumb from '../ProductThumb';
 import SupplierForm from '../SupplierForm';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
-import { ArrowUturnLeftIcon, CameraIcon, MagnifyingGlassIcon, PlusIcon, XIcon } from '../shared/icons';
+import { ArrowUturnLeftIcon, CameraIcon, EllipsisHorizontalIcon, MagnifyingGlassIcon, PlusIcon, XIcon } from '../shared/icons';
 import CounterGroup from './CounterGroup';
 import ProductEditorSheet from './ProductEditorSheet';
 import ImportSheet from './ImportSheet';
@@ -33,6 +33,7 @@ const CounterCatalog: React.FC = () => {
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [importing, setImporting] = useState(false);
   const [photoWalk, setPhotoWalk] = useState(false);
+  const [more, setMore] = useState(false);
   const [prefs] = useDevicePrefs();
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -77,28 +78,13 @@ const CounterCatalog: React.FC = () => {
 
   return (
     <div className="space-y-3" data-testid="counter-catalog">
-      <section className={`${ui.card} p-3`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-extrabold leading-tight">{t('navCatalog')}</h1>
-            <p className={ui.muted}>{t('catalogSummary', { products: products.length, suppliers: suppliers.length })}</p>
-          </div>
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <button type="button" className={ui.primary} onClick={() => setEditing({ supplierId: '' })}>
-            <PlusIcon className="h-5 w-5" /> {t('addProduct')}
-          </button>
-          <button type="button" className={ui.secondary} onClick={() => setAddingSupplier(true)}>
-            <PlusIcon className="h-5 w-5" /> {t('addSupplier')}
-          </button>
-          <button type="button" className={ui.secondary} onClick={() => setPhotoWalk(true)} data-testid="open-photo-walk">
-            <CameraIcon className="h-5 w-5" /> {t('addPhotos')}
-          </button>
-          <button type="button" className={ui.secondary} onClick={() => setImporting(true)} data-testid="open-import">
-            <ArrowUturnLeftIcon className="h-5 w-5 rotate-90" /> {t('importCsvShort')}
-          </button>
-        </div>
-        <div className="relative mt-2">
+      <section className={`${ui.card} space-y-2 p-3`}>
+        <h1 className="flex flex-wrap items-baseline gap-x-2 leading-tight">
+          <span className="text-lg font-extrabold">{t('navCatalog')}</span>
+          <span className={ui.muted}>{t('catalogSummary', { products: products.length, suppliers: suppliers.length })}</span>
+        </h1>
+        {/* Search first: finding a product is the most common job here. */}
+        <div className="relative">
           <MagnifyingGlassIcon className="pointer-events-none absolute start-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
           <input
             type="search"
@@ -114,7 +100,15 @@ const CounterCatalog: React.FC = () => {
             </button>
           )}
         </div>
-        {search && <p className={`mt-2 ${ui.muted}`} role="status">{t('searchResultsCount', { count: resultCount })}</p>}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={`${ui.primary} min-w-0 flex-1 basis-[9rem]`} onClick={() => setEditing({ supplierId: '' })}>
+            <PlusIcon className="h-5 w-5" /> {t('addProduct')}
+          </button>
+          <button type="button" className={`${ui.secondary} min-w-0 flex-1 basis-[7rem]`} onClick={() => setMore(true)} data-testid="catalog-more" aria-haspopup="dialog">
+            <EllipsisHorizontalIcon className="h-5 w-5" /> {t('catalogMore')}
+          </button>
+        </div>
+        {search && <p className={ui.muted} role="status">{t('searchResultsCount', { count: resultCount })}</p>}
       </section>
 
       {notice && <p role="status" className={ui.ok} data-testid="catalog-notice">{notice}</p>}
@@ -180,6 +174,19 @@ const CounterCatalog: React.FC = () => {
           setNotice(message);
         }}
       />
+      <Sheet open={more} onClose={() => setMore(false)} title={t('catalogMoreTitle')} testId="catalog-more-sheet">
+        <div className="grid grid-cols-1 gap-2">
+          <button type="button" className={`${ui.secondary} justify-start`} onClick={() => { setMore(false); setAddingSupplier(true); }}>
+            <PlusIcon className="h-5 w-5" /> {t('addSupplier')}
+          </button>
+          <button type="button" className={`${ui.secondary} justify-start`} onClick={() => { setMore(false); setPhotoWalk(true); }} data-testid="open-photo-walk">
+            <CameraIcon className="h-5 w-5" /> {t('addPhotos')}
+          </button>
+          <button type="button" className={`${ui.secondary} justify-start`} onClick={() => { setMore(false); setImporting(true); }} data-testid="open-import">
+            <ArrowUturnLeftIcon className="h-5 w-5 rotate-90" /> {t('importProducts')}
+          </button>
+        </div>
+      </Sheet>
       <PhotoWalkSheet
         open={photoWalk}
         supplierId={suppliers.some(sup => sup.id === prefs.lastSupplier) ? prefs.lastSupplier : [...suppliers].sort((a, b) => a.name.localeCompare(b.name))[0]?.id ?? ''}

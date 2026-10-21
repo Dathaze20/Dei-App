@@ -23,6 +23,7 @@ import {
   XIcon,
   ArchiveBoxIcon,
   PhotoIcon,
+  CameraIcon,
 } from '../shared/icons';
 
 const row =
@@ -64,7 +65,7 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
               initial={{ x: from }}
               animate={{ x: 0 }}
               exit={{ x: from }}
-              transition={{ type: 'spring', stiffness: 420, damping: 40 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 44 }} // critically damped: never slides past the edge
             >
               <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2 dark:border-white/10">
                 <div className="min-w-0 flex-1">
@@ -83,11 +84,11 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
                   [
                     ['menuGroupStore', [['settings-store', t('storeProfile'), UserCircleIcon]]],
                     ['menuGroupPreferences', [['settings-display', t('appearance'), SwatchIcon]]],
-                    ['menuGroupData', [['settings-backup', t('menuBackup'), ArrowDownTrayIcon], ['settings-photos', t('productPhotos'), PhotoIcon], ['settings-restore', t('menuRestore'), ArrowUturnLeftIcon], ['/counter/orders/history', t('orderHistory'), ArchiveBoxIcon]]],
+                    ['menuGroupData', [['settings-backup', t('menuBackup'), ArrowDownTrayIcon], ['settings-photos', t('productPhotos'), PhotoIcon], ['settings-restore', t('menuRestore'), ArrowUturnLeftIcon], ['/counter/orders/history', t('orderHistory'), ArchiveBoxIcon], ['/counter/shelf', t('shelfCheck'), CameraIcon]]],
                     ['menuGroupApp', [['settings-updates', t('menuUpdates'), SparklesIcon], ['settings-about', t('aboutApp'), InformationCircleIcon]]],
                   ] as const
                 ).map(([group, entries]) => (
-                  <div key={group} className="pt-2">
+                  <div key={group} className="pt-1">
                     <p className="px-3 pb-0.5 text-[0.6875rem] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t(group)}</p>
                     {entries.map(([section, label, Icon]) => (
                       <button key={section} type="button" className={row} onClick={() => goTo(section)} data-section={section}>

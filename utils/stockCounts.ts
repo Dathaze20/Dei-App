@@ -22,8 +22,11 @@ export const MAX_COUNTS_PER_PRODUCT = 2;
 /** Larger numbers are almost certainly typing mistakes. */
 export const MAX_COUNT_UNITS = 99_999;
 
-/** How the count was taken. 'counter' is reserved for The Counter (C2). */
-export type CountSource = 'classic' | 'confirmed-legacy' | 'counter';
+/**
+ * How the count was taken: 'counter' the keypad; 'photo-review' a total the person confirmed
+ * while reviewing shelf photos (v0.1.5). Older app versions read any source as plain text.
+ */
+export type CountSource = 'classic' | 'confirmed-legacy' | 'counter' | 'photo-review';
 
 export interface StockCount {
   /** Individual physical units on hand. Whole number, 0 or more. */
@@ -80,6 +83,20 @@ export const withCount = (doc: StockCountsDoc, productId: string, count: StockCo
       [productId]: { ...doc.products[productId], counts: [count, ...previous].slice(0, MAX_COUNTS_PER_PRODUCT) },
     },
   };
+};
+
+/**
+ * Takes back one count (Undo right after saving): only when it is still the product's newest
+ * count, recognised by its time. Otherwise the same document is returned and nothing changes.
+ */
+export const withoutCount = (doc: StockCountsDoc, productId: string, countedAt: string): StockCountsDoc => {
+  const counts = doc.products[productId]?.counts ?? [];
+  if (counts[0]?.countedAt !== countedAt) return doc;
+  const rest = counts.slice(1);
+  const products = { ...doc.products };
+  if (rest.length) products[productId] = { ...products[productId], counts: rest };
+  else delete products[productId];
+  return { ...doc, products };
 };
 
 /**

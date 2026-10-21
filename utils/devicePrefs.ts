@@ -80,8 +80,9 @@ export const withFavoriteToggled = (prefs: DevicePrefs, supplierId: string): Dev
 });
 
 /**
- * The quick suppliers next to the current one: favourites first, then recent ones, never the
- * current supplier, only suppliers that still exist, at most `max`.
+ * The quick suppliers next to the current one: the recently used ones, never the current
+ * supplier, only suppliers that still exist, at most `max`. (Pinned suppliers were removed from
+ * the screen in v0.1.5; a saved `favorites` list is kept as it is but no longer used.)
  */
 export const quickSuppliers = (prefs: DevicePrefs, currentId: string, existing: ReadonlySet<string>, max = 3): string[] =>
-  [...new Set([...prefs.favorites, ...prefs.recent])].filter(id => id !== currentId && existing.has(id)).slice(0, max);
+  prefs.recent.filter(id => id !== currentId && existing.has(id)).slice(0, max);

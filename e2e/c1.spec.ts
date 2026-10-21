@@ -8,9 +8,10 @@ const KEY = 'inventory_stockCounts';
 const EMPTY_ORDER = JSON.stringify({ items: [], createdAt: '2026-10-15T08:00:00.000Z' });
 const sheet = (page: Page) => page.getByTestId('count-sheet');
 const storedCounts = (page: Page) => page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? 'null'), KEY);
-/** The row's stock line, found with Counter search. */
+/** The row's stock line, found with Counter search, in Count mode (v0.1.5 shows stock there). */
 const stockLabel = async (page: Page, text: string) => {
   const box = page.getByRole('searchbox');
+  if (!(await box.count())) await page.getByTestId('mode-count').click(); // waits for the Counter screen
   if (!(await box.count())) await page.getByRole('button', { name: /^(Search products|Buscar productos|البحث في المنتجات)$/ }).click();
   await page.getByRole('searchbox').fill(text);
   return page.getByTestId('counter-row').filter({ hasText: text }).first().getByTestId('stock-label');
