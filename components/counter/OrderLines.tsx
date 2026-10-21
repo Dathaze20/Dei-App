@@ -45,7 +45,7 @@ const OrderLines: React.FC<{ group: SummaryGroup }> = ({ group }) => {
         return (
           <li key={`${item.productId}|${unit}`} className="py-2" data-testid="order-line">
             <div className="flex flex-wrap items-start gap-x-3">
-              <ProductThumb product={product} alt="" className="h-11 w-11 rounded-lg" />
+              <ProductThumb product={product} alt="" className="h-14 w-14 rounded-xl" />
               <div className="min-w-0 flex-1 basis-32">
                 <p dir="auto" className="break-words font-semibold leading-snug rtl:text-right" data-testid="order-line-name">{primary}</p>
                 <p dir="auto" className="break-words text-xs text-slate-500 rtl:text-right dark:text-slate-400">{secondary}</p>
@@ -59,7 +59,7 @@ const OrderLines: React.FC<{ group: SummaryGroup }> = ({ group }) => {
               </div>
               {lineTotal !== null && <p className="ms-auto flex-shrink-0 font-bold tabular-nums">{money(lineTotal)}</p>}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 ps-[min(3.5rem,12%)]">
+            <div className="mt-1 flex flex-wrap items-center gap-2 ps-[min(4.25rem,14%)]">
               <div dir="ltr" className="flex items-center rounded-xl bg-slate-100 ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10">
                 <button type="button" onClick={() => updateOrderItemQuantity(item.productId, item.quantity - 1, unit)} aria-label={t('removeOne', { name })} className="inline-flex h-11 w-11 items-center justify-center">
                   <MinusIcon className="h-5 w-5" />
