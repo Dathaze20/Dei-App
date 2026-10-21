@@ -3,7 +3,7 @@
 // the Catalog editor, Settings, the menu and Android Back — plus the phone-layout guarantees for
 // every new sheet.
 import { Page, expect, test } from '@playwright/test';
-import { REAL, dumpStorage, seed } from './helpers';
+import { REAL, dumpStorage, pickSupplier, seed } from './helpers';
 import { SAFE_BOTTOM, expectTargets, openPhone, overflowing } from './layout';
 
 const COUNTER = { deliordernyc_sys_uiMode: 'counter' };
@@ -54,7 +54,7 @@ test.describe('counting with the keypad', () => {
     await type(page, '7');
     await sheet(page).getByRole('button', { name: 'Save', exact: true }).click();
     await expect(sheet(page)).toHaveCount(0);
-    await expect(page.getByTestId('counter-notice')).toContainText('Caution Extreme Performance, 7 cans.');
+    await expect(page.getByTestId('toast')).toContainText('Caution Extreme Performance, 7 cans.');
     await expect(row(page, 'Caution Extreme Performance').getByTestId('stock-label')).toContainText('7 in stock');
     expect(Object.keys((await counts(page)).products).sort()).toEqual(['az_rx_caution_slim11_5', 'az_rx_fruitpunch_slim11_5']);
   });
@@ -114,7 +114,7 @@ test.describe('counting with the keypad', () => {
     await startCounting(tabA, 'Caution Extreme Fruit Punch');
     await type(tabA, '18');
     await sheet(tabA).getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(tabA.getByTestId('counter-notice')).toBeVisible();
+    await expect(tabA.getByTestId('toast')).toBeVisible();
 
     await startCounting(tabB, 'Caution Extreme Performance');
     await type(tabB, '7');
@@ -139,7 +139,7 @@ test.describe('counting with the keypad', () => {
   test("Boar's Head is never counted: no Count mode, no Count buttons, no Count in its sheet", async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
     await page.getByTestId('mode-count').click();
-    await page.getByTestId('counter-capsules').getByRole('button', { name: "Boar's Head" }).click();
+    await pickSupplier(page, "Boar's Head");
     await expect(page.getByTestId('mode-count')).toHaveCount(0);
     await expect(page.getByTestId('list-hint')).toBeVisible();
     await expect(page.getByRole('button', { name: /^Count:/ })).toHaveCount(0);
@@ -154,12 +154,12 @@ test.describe('ordering by supplier', () => {
   test('the tray shows this supplier only; Review changes quantities; Share has only this supplier (QR, Copy, Text)', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await seed(page, { ...REAL, ...COUNTER });
-    await page.getByTestId('counter-capsules').getByRole('button', { name: /Frito-Lay/ }).click();
+    await pickSupplier(page, /Frito-Lay/);
     await row(page, 'Classic').getByRole('button', { name: /^Add one/ }).click();
     await expect(page.getByTestId('order-tray')).toContainText('Frito-Lay');
     await expect(page.getByTestId('order-tray')).toContainText('1 lines · 1 case(s)');
 
-    await page.getByTestId('counter-capsules').getByRole('button', { name: /Arizona/ }).click();
+    await pickSupplier(page, /Arizona/);
     await expect(page.getByTestId('order-tray')).toContainText('Arizona');
     await page.getByTestId('order-tray').click();
     const tray = page.getByTestId('tray-sheet');
@@ -181,18 +181,18 @@ test.describe('ordering by supplier', () => {
 
   test('Orders: overview, per-supplier sections, Add more returns to that supplier, clearing asks first', async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
-    await page.getByTestId('counter-capsules').getByRole('button', { name: /Frito-Lay/ }).click();
+    await pickSupplier(page, /Frito-Lay/);
     await row(page, 'BBQ').getByRole('button', { name: /^Add one/ }).click();
-    await page.getByTestId('counter-capsules').getByRole('button', { name: /Arizona/ }).click();
+    await pickSupplier(page, /Arizona/);
     await page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ }).click();
 
     await expect(page.getByTestId('orders-overview')).toContainText('2 suppliers · 3 lines');
     await expect(page.getByTestId('order-total')).toContainText('$109.98');
     await expect(page.getByTestId('order-total')).toContainText('Estimated total');
     const frito = page.locator('[data-testid="supplier-order"][data-supplier="sup4"]');
-    await frito.getByRole('button', { name: 'Add more' }).click();
+    await frito.getByRole('button', { name: 'Open Frito-Lay' }).click();
     await expect(page).toHaveURL(/#\/counter$/);
-    await expect(page.getByTestId('counter-capsules').getByRole('button', { name: /Frito-Lay/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('current-supplier')).toContainText('Frito-Lay');
 
     await page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ }).click();
     await frito.getByRole('button', { name: 'Clear supplier' }).click();
@@ -211,7 +211,7 @@ test.describe('ordering by supplier', () => {
 
   test("Boar's Head: tick, optional quantity, Create List reads aloud with no prices, cases or counts", async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER, inventory_currentOrder: EMPTY_ORDER });
-    await page.getByTestId('counter-capsules').getByRole('button', { name: "Boar's Head" }).click();
+    await pickSupplier(page, "Boar's Head");
     await page.getByRole('checkbox', { name: /Provolone Cheese/ }).click();
     await page.getByRole('checkbox', { name: /OvenGold Turkey/ }).click();
     await row(page, 'Provolone Cheese').getByRole('button', { name: /^Add one/ }).click();
@@ -242,7 +242,7 @@ test.describe('ordering by supplier', () => {
   test("an older Boar's Head case line keeps meaning cases until it is changed, after confirming", async ({ page }) => {
     const older = JSON.stringify({ items: [{ productId: 'bh_ham', quantity: 2 }], createdAt: '2026-10-01T08:00:00.000Z' });
     await seed(page, { ...REAL, ...COUNTER, inventory_currentOrder: older });
-    await page.getByTestId('counter-capsules').getByRole('button', { name: "Boar's Head" }).click();
+    await pickSupplier(page, "Boar's Head");
     await expect(row(page, 'Deluxe Ham')).toContainText('+ 2 case(s) from an earlier line');
     await page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ }).click();
     await expect(page.getByTestId('order-line')).toContainText('2 case(s) · earlier order line, in cases');
@@ -327,12 +327,14 @@ test.describe('Catalog', () => {
 });
 
 test.describe('Settings and menu', () => {
-  test('store name, theme, language and screen style save and stay after a restart', async ({ page }) => {
+  test('store name, theme, language and display density save and stay after a restart', async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER, theme: 'light' });
     await page.goto('/#/counter/settings');
     await page.getByLabel('Deli Name').fill('Sunrise Deli');
     await page.getByRole('button', { name: 'Save Name' }).click();
-    await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
+    await expect(page.getByTestId('toast')).toHaveText('Saved');
+    await page.getByRole('group', { name: 'Display density' }).getByRole('button', { name: 'Compact' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
     await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Dark' }).click();
     await expect(page.locator('html')).toHaveClass(/\bdark\b/);
     await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click();
@@ -343,9 +345,10 @@ test.describe('Settings and menu', () => {
     await expect(page.getByTestId('counter-nav')).toContainText('Pedidos');
     expect(await dumpStorage(page)).toMatchObject({ inventory_deliName: 'Sunrise Deli', theme: 'dark', language: 'es' });
 
-    await page.getByTestId('screen-style-panel').getByRole('button', { name: 'Vista Clásica' }).click();
-    await expect(page).toHaveURL(/#\/$/);
-    expect((await dumpStorage(page)).deliordernyc_sys_uiMode).toBe('classic');
+    await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
+    // Display preferences live in their own device-only key, apart from the inventory data.
+    expect(JSON.parse((await dumpStorage(page)).deliordernyc_sys_prefs).density).toBe('compact');
+    await expect(page.getByTestId('screen-style-panel')).toHaveCount(0); // Classic View is retired
   });
 
   test('every menu entry opens its Settings section; About says where the data is', async ({ page }) => {
@@ -412,18 +415,19 @@ test.describe('Android Back', () => {
     await page.getByRole('searchbox').fill('provolone');
     expect(await back(page)).toBe(true);
     await expect(page.getByRole('searchbox')).toHaveCount(0);
-    await expect(page.getByTestId('counter-capsules')).toBeVisible();
+    await expect(page.getByTestId('supplier-bar')).toBeVisible();
   });
 
-  test('Classic View: closes a dialog, then returns to Products, then leaves', async ({ page }) => {
+  test('an old address (#/order) also comes back to Counter with Back, then leaves', async ({ page }) => {
     await seed(page, REAL, '/order');
-    await page.getByRole('button', { name: 'Share', exact: true }).click();
+    await page.getByRole('button', { name: 'Share Arizona order' }).click();
     expect(await back(page)).toBe(true);
-    await expect(page.getByRole('heading', { name: /Share Order/ })).toHaveCount(0);
+    await expect(page.getByTestId('share-sheet')).toHaveCount(0);
     expect(await back(page)).toBe(true);
-    await expect(page).toHaveURL(/#\/$/);
+    await expect(page).toHaveURL(/#\/counter$/);
     expect(await back(page)).toBe(false);
   });
+
 });
 
 test.describe('new sheets on the phone', () => {

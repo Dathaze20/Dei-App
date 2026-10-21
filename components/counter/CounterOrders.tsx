@@ -51,10 +51,10 @@ const CounterOrders: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ o
   const lines = summary.groups.reduce((total, group) => total + group.lines.length, 0);
   return (
     <div className="space-y-3" data-testid="counter-orders">
-      <section className={`${ui.card} p-4`} data-testid="orders-overview">
-        <h1 className="text-xl font-extrabold">{t('currentOrderTitle')}</h1>
+      <section className={`${ui.card} p-3`} data-testid="orders-overview">
+        <h1 className="text-lg font-extrabold leading-tight">{t('currentOrderTitle')}</h1>
         <p className={ui.muted}>{t('ordersOverview', { suppliers: summary.groups.length, lines })}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           {summary.groups.map(group => (
             <a
               key={group.supplier.id}
@@ -71,7 +71,7 @@ const CounterOrders: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ o
           ))}
         </div>
         {summary.hasPriced && (
-          <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-slate-100 pt-3 dark:border-white/5" data-testid="order-total">
+          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 border-t border-slate-100 pt-2 dark:border-white/5" data-testid="order-total">
             <span className="font-semibold text-slate-600 dark:text-slate-300">{summary.hasUnpriced ? t('pricedSubtotalEstimate') : t('estimatedTotal')}</span>
             <span className="text-2xl font-extrabold tabular-nums">{money(summary.pricedTotal)}</span>
           </div>

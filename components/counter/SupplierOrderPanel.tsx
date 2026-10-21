@@ -8,6 +8,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { SummaryGroup } from '../../utils/orderSummary';
 import ConfirmSheet from '../ui/ConfirmSheet';
 import { ui } from '../ui/styles';
+import { useToast } from '../ui/Toast';
 import { ListBulletIcon, PlusIcon, ShareIcon, TrashIcon } from '../shared/icons';
 import OrderLines, { groupTotals, money } from './OrderLines';
 
@@ -21,8 +22,9 @@ interface SupplierOrderPanelProps {
 }
 
 const SupplierOrderPanel: React.FC<SupplierOrderPanelProps> = ({ group, onShare, onAddMore, showHeading = true }) => {
-  const { removeFromOrder } = useInventory();
+  const { addToOrder, removeFromOrder } = useInventory();
   const { t } = useTranslation();
+  const toast = useToast();
   const [confirmClear, setConfirmClear] = useState(false);
   const { lines, units } = groupTotals(group);
   const isList = group.workflow.orderStyle === 'items';
@@ -55,7 +57,7 @@ const SupplierOrderPanel: React.FC<SupplierOrderPanelProps> = ({ group, onShare,
         </button>
         {onAddMore && (
           <button type="button" className={ui.secondary} onClick={() => onAddMore(group.supplier.id)}>
-            <PlusIcon className="h-5 w-5" /> {t('addMore')}
+            <PlusIcon className="h-5 w-5" /> <span className="min-w-0 truncate">{t('backToSupplier', { supplier: group.supplier.name })}</span>
           </button>
         )}
         <button type="button" className={`${ui.dangerQuiet} ${onAddMore ? '' : 'col-span-2'}`} onClick={() => setConfirmClear(true)}>
@@ -70,8 +72,12 @@ const SupplierOrderPanel: React.FC<SupplierOrderPanelProps> = ({ group, onShare,
         confirmLabel={t('clearSupplier')}
         onCancel={() => setConfirmClear(false)}
         onConfirm={() => {
-          for (const line of group.lines) removeFromOrder(line.item.productId, line.unit);
+          const removed = group.lines.map(line => ({ id: line.item.productId, unit: line.unit, quantity: line.item.quantity, older: line.olderCaseLine }));
+          for (const line of removed) removeFromOrder(line.id, line.unit);
           setConfirmClear(false);
+          // Undo puts the lines back, unless one was an older case line (it cannot be re-created as it was).
+          const undoable = removed.every(line => !line.older);
+          toast(t('supplierCleared', { supplier: group.supplier.name }), undoable ? { label: t('undo'), run: () => removed.forEach(line => addToOrder(line.id, line.quantity)) } : undefined);
         }}
       />
     </section>

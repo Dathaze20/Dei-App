@@ -4,11 +4,11 @@
 // language), backup, restore and recovery, app updates, and about. Backup, restore and updates
 // are the same panels Classic View uses, so they behave identically.
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useTheme } from '../../contexts/ThemeContext';
-import { saveUiMode } from '../../utils/uiMode';
+import { useDevicePrefs } from '../../hooks/useDevicePrefs';
+import { useToast } from '../ui/Toast';
 import { AppInfo, DeliNative, isAndroidApp } from '../../utils/nativeApp';
 import AppUpdatePanel from '../AppUpdatePanel';
 import DataExportPanel from '../DataExportPanel';
@@ -31,7 +31,8 @@ const CounterSettings: React.FC = () => {
   const { deliName, updateDeliName } = useInventory();
   const { t, language, setLanguage } = useTranslation();
   const { theme, toggleTheme } = useTheme();
-  const navigate = useNavigate();
+  const [prefs, setPrefs] = useDevicePrefs();
+  const toast = useToast();
   const android = isAndroidApp();
   const [name, setName] = useState(deliName);
   const [saved, setSaved] = useState(false);
@@ -47,13 +48,14 @@ const CounterSettings: React.FC = () => {
   const saveName = (event: React.FormEvent) => {
     event.preventDefault();
     updateDeliName(name.trim());
+    toast(t('settingSaved'));
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
 
   return (
     <div className="space-y-3" data-testid="counter-settings">
-      <h1 className="px-1 text-xl font-extrabold">{t('menuSettings')}</h1>
+      <h1 className="sr-only">{t('menuSettings')}</h1>
 
       <Section id="settings-store" title={t('storeProfile')} icon={<UserCircleIcon className="h-5 w-5" />}>
         <form onSubmit={saveName} className="space-y-2">
@@ -69,21 +71,21 @@ const CounterSettings: React.FC = () => {
 
       <Section id="settings-display" title={t('appearance')} icon={<SwatchIcon className="h-5 w-5" />}>
         <div className="space-y-4">
-          <div data-testid="screen-style-panel">
-            <p className={`${ui.eyebrow} mb-1`}>{t('screenStyle')}</p>
+          <div data-testid="density-setting">
+            <p className={`${ui.eyebrow} mb-1`}>{t('densityLabel')}</p>
             <Segmented
-              label={t('screenStyle')}
-              value="counter"
-              onChange={mode => {
-                saveUiMode(mode);
-                navigate(mode === 'counter' ? '/counter' : '/');
+              label={t('densityLabel')}
+              value={prefs.density}
+              onChange={density => {
+                setPrefs(p => ({ ...p, density }));
+                toast(t('settingSaved'));
               }}
               options={[
-                { value: 'classic', label: t('screenClassic') },
-                { value: 'counter', label: t('screenCounter') },
+                { value: 'comfortable', label: t('densityComfortable') },
+                { value: 'compact', label: t('densityCompact') },
               ]}
             />
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('screenStyleHelp')}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('densityHelp')}</p>
           </div>
           <div>
             <p className={`${ui.eyebrow} mb-1`}>{t('themeLabel')}</p>

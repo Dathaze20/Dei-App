@@ -5,7 +5,7 @@
 // unverified old number is never shown as counted; a count is reported saved only after it is
 // really stored; a refused save (blocked, phone did not save) says so and does NOT move on, and
 // keeps what was typed. Save & Next walks the products in the order they are on screen.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { SaveCountResult } from '../../contexts/InventoryContext';
@@ -36,6 +36,8 @@ const CountSheet: React.FC<CountSheetProps> = ({ productId, orderedIds, onClose,
   const { t, language } = useTranslation();
   const product = productId ? getProductById(productId) : undefined;
   const [text, setText] = useState('');
+  // A second tap that lands just after a successful Save & Next must not hit the next product.
+  const lastAdvance = useRef(0);
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [confirmingOld, setConfirmingOld] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -84,7 +86,7 @@ const CountSheet: React.FC<CountSheetProps> = ({ productId, orderedIds, onClose,
   };
 
   const saveNext = () => {
-    if (!product) return;
+    if (!product || Date.now() - lastAdvance.current < 500) return;
     const outcome = saveAndNext(text, product.id, orderedIds, units => saveStockCount(product.id, units, 'counter'));
     if (!outcome.saved) {
       setMessage({ tone: 'error', text: refusal(outcome.result) });
@@ -92,6 +94,7 @@ const CountSheet: React.FC<CountSheetProps> = ({ productId, orderedIds, onClose,
     }
     const done = outcome.result.ok ? savedText(outcome.result.count.units) : '';
     if (outcome.nextId) {
+      lastAdvance.current = Date.now();
       setMessage({ tone: 'ok', text: done });
       onMove(outcome.nextId);
     } else {

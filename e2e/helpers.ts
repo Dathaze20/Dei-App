@@ -73,3 +73,36 @@ export const confirmRestore = async (page: Page) => {
   await Promise.all([page.waitForEvent('load'), visible(page).button('Restore Backup').click()]);
   await expect(page.locator('#root header')).toBeVisible();
 };
+
+/** Counter search (top bar): finds `text` across every supplier and adds one of the first match. */
+export const searchAndAdd = async (page: Page, text: string) => {
+  const box = page.getByRole('searchbox', { name: /Search products|Buscar productos|البحث في المنتجات/ });
+  if (!(await box.count())) await page.getByRole('button', { name: /^(Search products|Buscar productos|البحث في المنتجات)$/ }).click();
+  await box.fill(text);
+  // Item-list rows (Boar's Head) have a tick box instead of "+".
+  await page.getByTestId('counter-row').first().getByRole('button', { name: /^(Add one|Añadir uno|إضافة واحد)/ })
+    .or(page.getByTestId('counter-row').first().getByRole('checkbox')).first().click();
+};
+
+/** Opens the counting keypad for the first product whose row contains `text` (Counter search). */
+export const openCount = async (page: Page, text: string) => {
+  const box = page.getByRole('searchbox', { name: /Search products/ });
+  if (!(await box.count())) await page.getByRole('button', { name: 'Search products' }).click();
+  await box.fill(text);
+  await page.getByTestId('counter-row').filter({ hasText: text }).first().getByRole('button', { name: /^Details/ }).click();
+  await page.getByTestId('open-count').click();
+  await expect(page.getByTestId('count-sheet')).toBeVisible();
+};
+
+/** Types a count on the keypad and presses Save. */
+export const keypadSave = async (page: Page, digits: string) => {
+  for (const digit of digits) await page.getByTestId('count-keypad').getByRole('button', { name: digit, exact: true }).click();
+  await page.getByTestId('count-sheet').getByRole('button', { name: 'Save', exact: true }).click();
+};
+
+/** Chooses a supplier through "All suppliers" (C2.3 supplier list). */
+export const pickSupplier = async (page: Page, name: string | RegExp) => {
+  await page.getByTestId('all-suppliers').click();
+  await page.getByTestId('supplier-grid-all').getByTestId('supplier-tile').filter({ hasText: name }).first().locator('button').first().click();
+  await expect(page.getByTestId('supplier-grid')).toHaveCount(0);
+};

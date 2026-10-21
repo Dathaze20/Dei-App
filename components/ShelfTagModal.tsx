@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import QRCode from 'react-qr-code';
 import { Product } from '../types';
 import Modal from './Modal';
+import { isAndroidApp } from '../utils/nativeApp';
 import { useTranslation } from '../hooks/useTranslation';
 
 interface ShelfTagModalProps {
@@ -51,12 +52,19 @@ const ShelfTagModal: React.FC<ShelfTagModalProps> = ({ product, isOpen, onClose 
           </div>
         </div>
 
+        {isAndroidApp() ? (
+          // The Android app cannot print, and its QR codes point at the app's own private
+          // address (https://localhost), which a camera cannot open. Say so instead of offering
+          // a Print button that would only reload the app (docs/C2.3_NOTES.md).
+          <p className="text-center text-sm text-slate-600 dark:text-slate-300" data-testid="shelf-tag-android-note">{t('shelfTagAndroidNote')}</p>
+        ) : (
         <button
           onClick={handlePrint}
           className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold py-2 px-6 rounded-lg transition-colors active:scale-98"
         >
           {t('printTag')}
         </button>
+        )}
       </div>
     </Modal>
   );

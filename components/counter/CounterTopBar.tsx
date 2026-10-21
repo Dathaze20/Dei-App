@@ -50,8 +50,8 @@ const CounterTopBar: React.FC<CounterTopBarProps> = ({ onMenu, canSearch, search
         ) : (
           <>
             <div className="min-w-0 flex-1 px-1">
-              <p className="truncate text-lg font-extrabold leading-tight tracking-tight">
-                <span className="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent dark:from-cyan-300 dark:to-blue-400">{deliName}</span>
+              <p className="text-lg font-extrabold leading-tight tracking-tight">
+                <span className="block truncate bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent dark:from-cyan-300 dark:to-blue-400">{deliName}</span>
               </p>
             </div>
             {canSearch && (

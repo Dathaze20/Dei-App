@@ -1,5 +1,5 @@
 import { BrowserContext, Page, expect, test } from '@playwright/test';
-import { REAL, checkBackup, confirmRestore, deliData, dumpStorage, fixture, seed, visible } from './helpers';
+import { REAL, checkBackup, confirmRestore, deliData, dumpStorage, fixture, keypadSave, openCount, searchAndAdd, seed, visible } from './helpers';
 
 // The backup differs from the device (its stock values were generated on another day).
 const BACKUP = fixture('pr1-c3d8d63-arizona-demo.json');
@@ -19,14 +19,12 @@ const twoTabs = async (context: BrowserContext) => {
 
 const otherTabEdits: [string, (tab: Page) => Promise<void>][] = [
   ['adds a case to the order (through the UI)', async tab => {
-    await tab.getByPlaceholder(/Search all products/).fill('Pepsi');
-    await visible(tab).button(/Add 1 case/).click();
+    await searchAndAdd(tab, 'Pepsi');
   }],
   ['saves a stock count (through the product screen)', async tab => {
-    await tab.locator('main img').filter({ visible: true }).first().click();
-    await tab.locator('#stockCount').fill('4');
-    await tab.getByRole('button', { name: 'Save count' }).click();
-    await expect(tab.getByText('Count saved: 4 units.')).toBeVisible();
+    await openCount(tab, 'Caution Extreme Fruit Punch');
+    await keypadSave(tab, '4');
+    await expect(tab.getByTestId('toast')).toContainText('4 cans');
   }],
   ['saves a new wholesale price', async tab => {
     // Same effect as tab B saving an edited product: the stored price changes.

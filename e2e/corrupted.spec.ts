@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'fs';
-import { REAL, collectErrors, dumpStorage, exportViaUi, open, seed, visible } from './helpers';
+import { REAL, collectErrors, dumpStorage, exportViaUi, open, searchAndAdd, seed, visible } from './helpers';
 
 const CASES = [
   { label: 'corrupted product records', key: 'inventory_products', damaged: JSON.stringify([{ id: 'real-1', name: 'Pepsi', costPrice: 'oops' }]) },
@@ -14,8 +14,7 @@ for (const { label, key, damaged } of CASES) {
     await seed(page, { ...REAL, [key]: damaged });
     await expect(page.getByText('Some saved data could not be read')).toBeVisible();
     // Use the app normally (this triggers the automatic saving).
-    await page.getByPlaceholder(/Search all products/).fill('Pepsi');
-    await visible(page).button(/Add 1 case/).click();
+    await searchAndAdd(page, 'Pepsi');
     await open(page, '/order');
     await open(page, '/manage');
     expect((await dumpStorage(page))[key]).toBe(damaged);

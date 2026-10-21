@@ -2,7 +2,7 @@
 
 ## What "Export My Data" does
 
-**Manage → Backup & Export → Export My Data** creates one JSON file containing everything
+**Menu → Backup & Restore → Export My Data** (Settings) creates one JSON file containing everything
 DeliOrderNYC has saved in the browser at this web address:
 
 | Saved item | Storage key | In the export as |
@@ -155,7 +155,7 @@ checksum, so prefer the in-app export when possible.
 
 ## Restore from Backup
 
-**Manage → Restore from Backup** replaces DeliOrderNYC's data on this device with a backup file.
+**Menu → Restore & recovery** (Settings › Restore from Backup) replaces DeliOrderNYC's data on this device with a backup file.
 There is no merge: the device ends up matching the backup, and **Undo Last Restore** puts back
 exactly what was there before.
 
