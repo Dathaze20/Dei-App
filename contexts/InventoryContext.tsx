@@ -285,7 +285,7 @@ export interface InventoryContextType {
    * Puts a saved order back as that supplier's current order lines (replacing that supplier's
    * lines only). Products no longer in the catalog are skipped and counted.
    */
-  reuseHistoryOrder: (id: string) => { added: number; missing: number };
+  reuseHistoryOrder: (id: string, onlyLines?: readonly string[]) => { added: number; missing: number };
 }
 
 export type SaveHistoryResult =
@@ -507,10 +507,12 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
   const removeHistoryEntry = useCallback((id: string) => commitHistory(withoutEntry(orderHistoryRef.current, id)), []);
 
   const reuseHistoryOrder = useCallback(
-    (id: string) => {
+    (id: string, onlyLines?: readonly string[]) => {
       const entry = orderHistoryRef.current.entries.find(e => e.id === id);
       if (!entry) return { added: 0, missing: 0 };
-      const lines = entry.lines.filter(line => products.some(p => p.id === line.productId && p.supplierId === entry.supplierId));
+      // onlyLines: the chosen lines, as "productId|unit"; without it, every line.
+      const chosen = onlyLines ? entry.lines.filter(line => onlyLines.includes(`${line.productId}|${line.unit}`)) : entry.lines;
+      const lines = chosen.filter(line => products.some(p => p.id === line.productId && p.supplierId === entry.supplierId));
       setCurrentOrder(prev => ({
         ...prev,
         items: [
@@ -518,7 +520,7 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
           ...lines.map(line => (line.unit === 'item' ? { productId: line.productId, quantity: line.quantity, unit: 'item' as const } : { productId: line.productId, quantity: line.quantity })),
         ],
       }));
-      return { added: lines.length, missing: entry.lines.length - lines.length };
+      return { added: lines.length, missing: chosen.length - lines.length };
     },
     [products],
   );

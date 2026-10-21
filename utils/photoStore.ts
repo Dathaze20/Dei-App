@@ -20,28 +20,40 @@ export interface StoredPhoto {
 
 const cache = new Map<string, string>();
 
+// One connection for the whole app (opening IndexedDB per photo made long lists slow to show).
+let connection: Promise<IDBDatabase> | null = null;
 const open = (): Promise<IDBDatabase> =>
-  new Promise((resolve, reject) => {
+  (connection ??= new Promise<IDBDatabase>((resolve, reject) => {
     if (typeof indexedDB === 'undefined') return reject(new Error('no-indexeddb'));
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: 'id' });
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      // Another copy of the app upgrading the database, or the browser closing it: reconnect next time.
+      db.onversionchange = () => {
+        db.close();
+        connection = null;
+      };
+      db.onclose = () => {
+        connection = null;
+      };
+      resolve(db);
+    };
     request.onerror = () => reject(request.error);
-  });
+  }).catch(error => {
+    connection = null;
+    throw error;
+  }));
 
 const run = async <T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> => {
   const db = await open();
-  try {
-    return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(STORE, mode);
-      const request = work(tx.objectStore(STORE));
-      tx.oncomplete = () => resolve(request.result);
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
-  } finally {
-    db.close();
-  }
+  return new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(STORE, mode);
+    const request = work(tx.objectStore(STORE));
+    tx.oncomplete = () => resolve(request.result);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
 };
 
 export const isValidPhotoData = (dataUrl: unknown): dataUrl is string =>

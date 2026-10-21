@@ -3,15 +3,20 @@
 // "Needs attention" for the supplier on screen (utils/attention.ts): products at or below their
 // reorder point, never counted, or not counted lately. One line on the Counter screen; Review
 // lists them with the reason ("Verified 8 · reorder at 12"), and Count these walks the keypad
-// through them with Save & Next. It suggests what to check, never how much to order.
+// through them with Save & Next. Products at or below their reorder point can be put on the
+// order from the same list (one case; change it in the tray). It suggests what to check, never
+// how much to order.
 import React, { useState } from 'react';
 import { Product } from '../../types';
 import { useTranslation } from '../../hooks/useTranslation';
+import useInventory from '../../hooks/useInventory';
+import { lineQuantity } from '../../utils/supplierDraft';
+import { useToast } from '../ui/Toast';
 import { AttentionItem, AttentionReason, attentionTotals, STALE_DAYS } from '../../utils/attention';
 import ProductThumb from '../ProductThumb';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
-import { AlertTriangleIcon, CalculatorIcon, ChevronRightIcon } from '../shared/icons';
+import { AlertTriangleIcon, CalculatorIcon, ChevronRightIcon, PlusIcon } from '../shared/icons';
 
 interface AttentionCardProps {
   items: AttentionItem[];
@@ -21,6 +26,8 @@ interface AttentionCardProps {
 
 const AttentionCard: React.FC<AttentionCardProps> = ({ items, onCount }) => {
   const { t } = useTranslation();
+  const { currentOrder, addToOrder } = useInventory();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
   const totals = attentionTotals(items);
@@ -82,6 +89,25 @@ const AttentionCard: React.FC<AttentionCardProps> = ({ items, onCount }) => {
                   {reasonText(reason)}
                 </p>
               </div>
+              {(reason.kind === 'low' || reason.kind === 'out') && (() => {
+                const inOrder = lineQuantity(currentOrder.items, product.id, 'case');
+                const name = [product.name, product.flavor].filter(Boolean).join(' ');
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addToOrder(product.id, 1);
+                      toast(t('addedToOrder', { name }));
+                    }}
+                    aria-label={`${t('addToOrderShort')}: ${name}`}
+                    data-testid="attention-add"
+                    className="inline-flex min-h-11 min-w-11 flex-shrink-0 flex-col items-center justify-center rounded-xl bg-teal-500 px-2 py-1 text-white dark:bg-teal-400 dark:text-slate-950"
+                  >
+                    <PlusIcon className="h-5 w-5" />
+                    {inOrder > 0 && <span className="text-[0.6875rem] font-bold leading-tight">{inOrder}</span>}
+                  </button>
+                );
+              })()}
               <button
                 type="button"
                 onClick={() => start(product)}

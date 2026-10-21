@@ -3,7 +3,7 @@
 // Everything about one product, with the full name (never cut off): picture, supplier, size,
 // case size and catalog cost (an estimate), the verified stock, Count, and the product's line in
 // the order with − / +. Changes go straight to the one saved order.
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -13,7 +13,8 @@ import ProductThumb from '../ProductThumb';
 import StockLabel from '../StockLabel';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
-import { CalculatorIcon, MinusIcon, PencilIcon, PlusIcon } from '../shared/icons';
+import { CalculatorIcon, CameraIcon, MinusIcon, PencilIcon, PlusIcon } from '../shared/icons';
+import PhotoWalkSheet from './PhotoWalkSheet';
 
 interface ProductSheetProps {
   product: Product | null;
@@ -25,6 +26,7 @@ const ProductSheet: React.FC<ProductSheetProps> = ({ product, onClose, onCount }
   const { currentOrder, getSupplierById, getWorkflow, addToOrder, updateOrderItemQuantity } = useInventory();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [photoWalk, setPhotoWalk] = useState(false);
   if (!product) return <Sheet open={false} onClose={onClose} title="">{null}</Sheet>;
 
   const workflow = getWorkflow(product.supplierId);
@@ -77,7 +79,12 @@ const ProductSheet: React.FC<ProductSheetProps> = ({ product, onClose, onCount }
     >
       <div className="space-y-4">
         <div className="flex gap-4">
-          <ProductThumb product={product} className="h-24 w-24 rounded-2xl" />
+          <div className="flex flex-shrink-0 flex-col items-center gap-1">
+            <ProductThumb product={product} className="h-24 w-24 rounded-2xl" />
+            <button type="button" className={`${ui.ghost} !px-2 text-sm`} onClick={() => setPhotoWalk(true)} data-testid="sheet-add-photo">
+              <CameraIcon className="h-5 w-5" /> {t('addPhoto')}
+            </button>
+          </div>
           <dl className="min-w-0 flex-1 space-y-1 text-sm">
             {facts.map(([label, value]) => (
               <div key={label} className="flex flex-wrap gap-x-2">
@@ -113,6 +120,7 @@ const ProductSheet: React.FC<ProductSheetProps> = ({ product, onClose, onCount }
           <PencilIcon className="h-5 w-5" /> {t('editInCatalog')}
         </button>
       </div>
+      <PhotoWalkSheet open={photoWalk} supplierId={product.supplierId} startId={product.id} onClose={() => setPhotoWalk(false)} />
     </Sheet>
   );
 };

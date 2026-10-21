@@ -13,10 +13,12 @@ import ProductThumb from '../ProductThumb';
 import SupplierForm from '../SupplierForm';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
-import { ArrowUturnLeftIcon, MagnifyingGlassIcon, PlusIcon, XIcon } from '../shared/icons';
+import { ArrowUturnLeftIcon, CameraIcon, MagnifyingGlassIcon, PlusIcon, XIcon } from '../shared/icons';
 import CounterGroup from './CounterGroup';
 import ProductEditorSheet from './ProductEditorSheet';
 import ImportSheet from './ImportSheet';
+import PhotoWalkSheet from './PhotoWalkSheet';
+import { useDevicePrefs } from '../../hooks/useDevicePrefs';
 
 const NO_SUPPLIER = '__none__';
 
@@ -30,6 +32,8 @@ const CounterCatalog: React.FC = () => {
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [photoWalk, setPhotoWalk] = useState(false);
+  const [prefs] = useDevicePrefs();
   const [notice, setNotice] = useState<string | null>(null);
 
   // "Edit in Catalog" from a product sheet opens that product here.
@@ -87,8 +91,11 @@ const CounterCatalog: React.FC = () => {
           <button type="button" className={ui.secondary} onClick={() => setAddingSupplier(true)}>
             <PlusIcon className="h-5 w-5" /> {t('addSupplier')}
           </button>
-          <button type="button" className={`${ui.secondary} col-span-2`} onClick={() => setImporting(true)} data-testid="open-import">
-            <ArrowUturnLeftIcon className="h-5 w-5 rotate-90" /> {t('importProducts')}
+          <button type="button" className={ui.secondary} onClick={() => setPhotoWalk(true)} data-testid="open-photo-walk">
+            <CameraIcon className="h-5 w-5" /> {t('addPhotos')}
+          </button>
+          <button type="button" className={ui.secondary} onClick={() => setImporting(true)} data-testid="open-import">
+            <ArrowUturnLeftIcon className="h-5 w-5 rotate-90" /> {t('importCsvShort')}
           </button>
         </div>
         <div className="relative mt-2">
@@ -172,6 +179,11 @@ const CounterCatalog: React.FC = () => {
           setEditing(null);
           setNotice(message);
         }}
+      />
+      <PhotoWalkSheet
+        open={photoWalk}
+        supplierId={suppliers.some(sup => sup.id === prefs.lastSupplier) ? prefs.lastSupplier : [...suppliers].sort((a, b) => a.name.localeCompare(b.name))[0]?.id ?? ''}
+        onClose={() => setPhotoWalk(false)}
       />
       <ImportSheet
         open={importing}

@@ -8,6 +8,10 @@ name: Android release APK (manual)
 # - With it, the APK is attached to a DRAFT GitHub Release. Drafts are invisible to the in-app
 #   updater. Nothing reaches the phone until the owner opens the draft and presses
 #   "Publish release" on GitHub.
+# - With "publish_approved_release", an APK the owner has approved is published as the latest
+#   stable release, which the in-app updater then offers. It needs the approved commit and
+#   version typed in; it publishes only if they match what was built and every check passed.
+#   A push, pull request or merge never publishes anything.
 #
 # Signing uses repository secrets ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD, and the
 # repository variable ANDROID_SIGNING_CERT_SHA256 (the key's fingerprint). If any is missing the
@@ -21,6 +25,18 @@ on:
         default: false
       release_notes:
         description: 'Release notes shown in the app (plain text)'
+        type: string
+        default: ''
+      publish_approved_release:
+        description: 'PUBLISH this approved release as the latest (the app will offer it)'
+        type: boolean
+        default: false
+      approved_version:
+        description: 'Publishing only: the approved version, e.g. 0.1.4 (must equal package.json)'
+        type: string
+        default: ''
+      approved_commit:
+        description: 'Publishing only: the approved main commit (at least 7 characters)'
         type: string
         default: ''
 
@@ -39,10 +55,27 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
+      # Exactly the commit this run was started on (the tip of main at that moment), so a later
+      # push to main can never slip into a build that was approved for another commit.
       - name: Checkout main
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
+
+      - name: Check the publishing request
+        if: inputs.publish_approved_release
+        env:
+          APPROVED_VERSION: ${{ inputs.approved_version }}
+          APPROVED_COMMIT: ${{ inputs.approved_commit }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          version="$(node -p "require('./package.json').version")"
+          [ -n "$APPROVED_VERSION" ] || fail "Publishing needs approved_version (for example $version)."
+          [ "${APPROVED_VERSION#v}" = "$version" ] || fail "approved_version $APPROVED_VERSION is not the version on main ($version). Nothing was built."
+          commit="$(printf '%s' "$APPROVED_COMMIT" | tr 'A-F' 'a-f' | tr -d ' ')"
+          printf '%s' "$commit" | grep -Eqx '[0-9a-f]{7,40}' || fail "approved_commit must be at least 7 hex characters of the approved main commit."
+          case "$GITHUB_SHA" in "$commit"*) ;; *) fail "main is at $GITHUB_SHA, not the approved commit $commit. Nothing was built." ;; esac
+          echo "Publishing request matches: version $version, commit $GITHUB_SHA."
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -177,7 +210,7 @@ jobs:
   draft-release:
     name: Attach to a draft GitHub Release (not published)
     needs: build
-    if: inputs.create_draft_release
+    if: inputs.create_draft_release && !inputs.publish_approved_release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -203,3 +236,97 @@ jobs:
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "DeliOrderNYC $VERSION" --notes-file notes.txt --draft
           echo "Draft release $TAG created. It is NOT visible to the app until you publish it on GitHub."
+
+  publish-release:
+    name: Publish the approved release (latest, stable)
+    needs: build
+    if: inputs.publish_approved_release
+    runs-on: ubuntu-latest
+    # The owner can add "Required reviewers" to this environment (Settings → Environments) for an
+    # extra approval click; without it, starting this run with the approved commit is the approval.
+    environment: release
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      # The full CI (browser tests on phone sizes, the Android build check, Pages check) must have
+      # passed on exactly this commit. Waits for it if it is still running; anything else stops here.
+      - name: Require a green CI run on the approved commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 60); do
+            run="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push&per_page=1" --jq '.workflow_runs[0] | "\(.status) \(.conclusion) \(.html_url)"')"
+            set -- $run
+            if [ "$1" = "completed" ]; then
+              [ "$2" = "success" ] && { echo "CI passed on $GITHUB_SHA: $3"; exit 0; }
+              echo "::error::CI did not pass on $GITHUB_SHA ($2): $3. Nothing was published."; exit 1
+            fi
+            echo "CI on $GITHUB_SHA: ${1:-not started}; waiting…"
+            sleep 30
+          done
+          echo "::error::CI on $GITHUB_SHA did not finish in 30 minutes. Nothing was published."; exit 1
+
+      - name: Download the verified APK
+        uses: actions/download-artifact@v4
+        with:
+          name: DeliOrderNYC-${{ needs.build.outputs.version }}
+          path: out
+
+      - name: Check the APK is the one that was verified
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          cd out
+          sha256sum -c "DeliOrderNYC-$VERSION.apk.sha256"
+
+      - name: Publish (or finish this version's own draft); never a second release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          NOTES: ${{ inputs.release_notes }}
+        run: |
+          TAG="v$VERSION"
+          APK="out/DeliOrderNYC-$VERSION.apk"
+          printf '%s\n' "${NOTES:-DeliOrderNYC $VERSION}" > notes.txt
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq "[.[] | select(.tag_name == \"$TAG\")]")"
+          count="$(printf '%s' "$existing" | jq length)"
+          [ "$count" -le 1 ] || { echo "::error::There are $count releases for $TAG. Remove the extra drafts first."; exit 1; }
+          if [ "$count" = "1" ]; then
+            [ "$(printf '%s' "$existing" | jq -r '.[0].draft')" = "true" ] \
+              || { echo "::error::$TAG is already published. Raise the version for a new release."; exit 1; }
+            id="$(printf '%s' "$existing" | jq -r '.[0].id')"
+            echo "Finishing this version's draft ($id) with the verified APK."
+            gh release upload "$TAG" "$APK" --repo "$GITHUB_REPOSITORY" --clobber
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" \
+              -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" -f name="DeliOrderNYC $VERSION" \
+              -f body="$(cat notes.txt)" -F draft=false -F prerelease=false -f make_latest=true > /dev/null
+          else
+            gh release create "$TAG" "$APK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "DeliOrderNYC $VERSION" --notes-file notes.txt --latest
+          fi
+
+      - name: Confirm what the app will see
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          NAME="DeliOrderNYC-$VERSION.apk"
+          SHA="$(cut -d' ' -f1 "out/$NAME.sha256")"
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$NAME"
+          for attempt in 1 2 3 4 5 6; do
+            latest="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest")"
+            ok="$(printf '%s' "$latest" | jq -r --arg tag "$TAG" --arg name "$NAME" --arg url "$URL" --arg sha "sha256:$SHA" \
+              '.tag_name == $tag and (.draft | not) and (.prerelease | not) and ([.assets[] | select(.name == $name and .browser_download_url == $url and .state == "uploaded" and .digest == $sha)] | length == 1)')"
+            if [ "$ok" = "true" ]; then
+              echo "The latest release is $TAG with $NAME (sha256 $SHA)."
+              echo "Published: $(printf '%s' "$latest" | jq -r .html_url)"
+              echo "### Published $TAG: $(printf '%s' "$latest" | jq -r .html_url)" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::The latest-release API does not show $TAG with the verified APK. Check the release page."
+          printf '%s' "$latest" | jq '{tag_name, draft, prerelease, assets: [.assets[] | {name, state, digest, browser_download_url}]}'
+          exit 1

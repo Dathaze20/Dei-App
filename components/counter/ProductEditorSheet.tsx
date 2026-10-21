@@ -219,7 +219,7 @@ const ProductEditorSheet: React.FC<ProductEditorSheetProps> = ({ product, onClos
             </div>
             <input ref={chooseInput} type="file" accept="image/*" className="hidden" onChange={addPhoto} data-testid="photo-choose-input" />
             <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={addPhoto} />
-            <p className="text-xs text-slate-500 dark:text-slate-400">{t('photoHelp')}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t('photoHelp')} {t('cameraHelp')}</p>
             {!isPhoto && field('imageUrl', t('imageUrlLabel'), { inputMode: 'url' })}
           </fieldset>
         </form>

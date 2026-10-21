@@ -20,6 +20,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { withSupplierChosen } from '../../utils/devicePrefs';
 import { StartupNotice } from '../../utils/safetyBootstrap';
 import { DeliNative, isAndroidApp } from '../../utils/nativeApp';
+import { readWorkPlace, saveWorkPlace } from '../../utils/workPlace';
 import { ToastProvider, useToast } from '../ui/Toast';
 import CounterDrawer from './CounterDrawer';
 import CounterCatalog from './CounterCatalog';
@@ -48,7 +49,13 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
   const [query, setQuery] = useState('');
   // Open and closed sections, kept while the app is open so leaving Counter and coming back
   // finds the same sections open (the scroll position is kept by CounterHome).
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const [toggled, setToggledState] = useState<Record<string, boolean>>(() => readWorkPlace().sections);
+  const setToggled: React.Dispatch<React.SetStateAction<Record<string, boolean>>> = change =>
+    setToggledState(prev => {
+      const next = typeof change === 'function' ? change(prev) : change;
+      saveWorkPlace(place => ({ ...place, sections: next }));
+      return next;
+    });
   // A product to open, from a shelf-tag link.
   const [openProductId, setOpenProductId] = useState<string | null>(null);
   const onHome = location.pathname === '/counter' || location.pathname === '/counter/';

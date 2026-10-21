@@ -5,8 +5,8 @@
 // person). Opening one shows its lines as they were saved and its exact text, with Copy, Text,
 // Mark as sent, Use as current order (asks first; replaces only that supplier's lines) and
 // Remove from history (asks first).
-import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { HistoryEntry, unitsOf } from '../../utils/orderHistory';
@@ -17,7 +17,7 @@ import EmptyState from '../ui/EmptyState';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
 import { useToast } from '../ui/Toast';
-import { ArchiveBoxIcon, CheckCircleIcon, ChevronRightIcon, ClipboardListIcon, EnvelopeIcon, TrashIcon } from '../shared/icons';
+import { ArchiveBoxIcon, CheckCircleIcon, CheckIcon, ChevronRightIcon, ClipboardListIcon, EnvelopeIcon, TrashIcon } from '../shared/icons';
 import { money } from './OrderLines';
 
 const OrderHistory: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ onSelectSupplier }) => {
@@ -25,8 +25,12 @@ const OrderHistory: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ on
   const { t, language } = useTranslation();
   const toast = useToast();
   const navigate = useNavigate();
-  const [filter, setFilter] = useState('');
+  const location = useLocation();
+  // Opened from a supplier's order ("Last saved order"): show that supplier's orders.
+  const [filter, setFilter] = useState(() => (location.state as { supplier?: string } | null)?.supplier ?? '');
   const [openId, setOpenId] = useState<string | null>(null);
+  // Lines chosen for "Use as current order" (all of them when an order is opened).
+  const [chosen, setChosen] = useState<string[]>([]);
   const [confirm, setConfirm] = useState<'reuse' | 'remove' | null>(null);
 
   const suppliers = useMemo(() => {
@@ -36,6 +40,8 @@ const OrderHistory: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ on
   }, [orderHistory]);
   const shown = filter ? orderHistory.filter(e => e.supplierId === filter) : orderHistory;
   const open = orderHistory.find(e => e.id === openId) ?? null;
+  const lineKey = (line: { productId: string; unit: string }) => `${line.productId}|${line.unit}`;
+  useEffect(() => setChosen(open ? open.lines.map(lineKey) : []), [openId]); // eslint-disable-line react-hooks/exhaustive-deps
   const unitWord = (entry: HistoryEntry) => (entry.lines.every(l => l.unit === 'item') ? t('itemsUnit') : t('casesUnit'));
   const when = (iso: string) => formatCountDate(iso, language, true);
 
@@ -122,8 +128,21 @@ const OrderHistory: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ on
           <div className="space-y-3">
             <ul className="divide-y divide-slate-100 dark:divide-white/5" data-testid="history-lines">
               {open.lines.map(line => (
-                <li key={`${line.productId}|${line.unit}`} className="flex items-baseline gap-3 py-1.5">
-                  <span className="w-10 flex-shrink-0 text-end font-bold tabular-nums">{line.quantity}</span>
+                <li key={lineKey(line)} className="flex items-center gap-2 py-1">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={chosen.includes(lineKey(line))}
+                    aria-label={[line.name, line.flavor].filter(Boolean).join(' ')}
+                    onClick={() => setChosen(prev => (prev.includes(lineKey(line)) ? prev.filter(k => k !== lineKey(line)) : [...prev, lineKey(line)]))}
+                    className="-ms-2 inline-flex h-11 w-11 flex-shrink-0 items-center justify-center"
+                    data-testid="history-line-check"
+                  >
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-md ring-2 ${chosen.includes(lineKey(line)) ? 'bg-teal-500 text-white ring-teal-500' : 'ring-slate-300 dark:ring-white/25'}`}>
+                      {chosen.includes(lineKey(line)) && <CheckIcon className="h-4 w-4" />}
+                    </span>
+                  </button>
+                  <span className="w-8 flex-shrink-0 text-end font-bold tabular-nums">{line.quantity}</span>
                   <span className="min-w-0 flex-1">
                     <span dir="auto" className="block break-words font-semibold leading-snug">{[line.name, line.flavor].filter(Boolean).join(' ')}</span>
                     <span className="block text-xs text-slate-500 dark:text-slate-400">
@@ -151,8 +170,8 @@ const OrderHistory: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ on
               >
                 <CheckCircleIcon className="h-5 w-5" /> {open.status === 'sent' ? t('markPrepared') : t('markSent')}
               </button>
-              <button type="button" className={ui.secondary} onClick={() => setConfirm('reuse')} data-testid="history-reuse">
-                <ArchiveBoxIcon className="h-5 w-5" /> {t('reuseOrder')}
+              <button type="button" className={ui.secondary} onClick={() => setConfirm('reuse')} disabled={chosen.length === 0} data-testid="history-reuse">
+                <ArchiveBoxIcon className="h-5 w-5" /> {chosen.length === open.lines.length ? t('reuseOrder') : t('reuseSelected', { count: chosen.length })}
               </button>
             </div>
             <details className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10">
@@ -175,7 +194,7 @@ const OrderHistory: React.FC<{ onSelectSupplier: (id: string) => void }> = ({ on
           onCancel={() => setConfirm(null)}
           onConfirm={() => {
             if (confirm === 'reuse') {
-              const { added, missing } = reuseHistoryOrder(open.id);
+              const { added, missing } = reuseHistoryOrder(open.id, chosen);
               toast(missing ? t('reuseMissing', { added, missing }) : t('reuseDone', { added }));
               setConfirm(null);
               setOpenId(null);

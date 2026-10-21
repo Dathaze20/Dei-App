@@ -27,6 +27,7 @@ import { useToast } from '../ui/Toast';
 import { useDevicePrefs } from '../../hooks/useDevicePrefs';
 import { quickSuppliers, withFavoriteToggled, withSupplierChosen, WorkMode } from '../../utils/devicePrefs';
 import { attentionList } from '../../utils/attention';
+import { readWorkPlace, saveWorkPlace } from '../../utils/workPlace';
 import SupplierSelector from './SupplierSelector';
 import AttentionCard from './AttentionCard';
 import BackupReminder from './BackupReminder';
@@ -55,7 +56,7 @@ interface CounterHomeProps {
 }
 
 /** Where each supplier's list was scrolled, while the app is open. */
-const scrollBySupplier = new Map<string, number>();
+const scrollBySupplier = new Map<string, number>(Object.entries(readWorkPlace().scroll));
 /** Scroll margin for sections, so a section jumped to sits under the sticky bars. */
 const SECTION_SCROLL = 'scroll-mt-[calc(var(--safe-top)+var(--header-h)+7.5rem)]';
 
@@ -150,9 +151,36 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   useLayoutEffect(() => {
     if (search) return;
     const saved = scrollBySupplier.get(activeId) ?? 0;
-    const frame = requestAnimationFrame(() => window.scrollTo(0, saved));
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    // Put the list back where it was. Right after a start the list may not be tall enough yet
+    // (slower phones), so keep trying for about a second; stop as soon as the person scrolls.
+    let ready = false;
+    let tries = 0;
+    let frame = 0;
+    const restore = () => {
+      window.scrollTo(0, saved);
+      if (Math.abs(window.scrollY - saved) > 2 && tries++ < 60) frame = requestAnimationFrame(restore);
+      else ready = true;
+    };
+    frame = requestAnimationFrame(restore);
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      ready = true;
+    };
+    const interactions = ['touchstart', 'wheel', 'keydown', 'mousedown'] as const;
+    interactions.forEach(type => window.addEventListener(type, stop, { passive: true, once: true }));
+    // Also kept on the phone, so the place survives Android closing the app in the background.
+    const onScroll = () => {
+      if (!ready) return;
+      const y = Math.round(window.scrollY);
+      scrollBySupplier.set(activeId, y);
+      saveWorkPlace(place => ({ ...place, scroll: { ...place.scroll, [activeId]: y } }));
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       cancelAnimationFrame(frame);
+      interactions.forEach(type => window.removeEventListener(type, stop));
+      window.removeEventListener('scroll', onScroll);
       scrollBySupplier.set(activeId, window.scrollY);
     };
   }, [activeId, search]);
