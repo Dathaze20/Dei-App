@@ -1,7 +1,9 @@
 // components/ui/Segmented.tsx
 //
 // A row of mutually exclusive choices (Order | Count, Light | Dark, languages, screen style).
+// Labels stay on one line; a long one gets slightly smaller text instead of breaking (FitText).
 import React from 'react';
+import FitText from './FitText';
 
 interface SegmentedProps<V extends string> {
   label: string;
@@ -22,13 +24,14 @@ const Segmented = <V extends string>({ label, value, options, onChange, classNam
           aria-pressed={active}
           data-testid={option.testId}
           onClick={() => onChange(option.value)}
-          className={`min-h-11 min-w-0 flex-1 rounded-xl px-2 text-sm font-semibold transition-colors ${
+          className={`min-h-11 min-w-0 flex-auto rounded-xl px-2.5 text-sm font-semibold transition-colors ${
             active
               ? 'bg-white text-cyan-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-cyan-300 dark:ring-white/10'
               : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
           }`}
         >
-          <span className="block break-words leading-tight">{option.label}</span>
+          {/* Never split inside a word (it did: "Orde/r" at Android's largest text). */}
+          <FitText className="leading-tight">{option.label}</FitText>
         </button>
       );
     })}

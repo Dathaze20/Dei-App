@@ -11,7 +11,8 @@ import { SYSTEM_KEY_PREFIX } from './dataExport';
 
 export const DEVICE_PREFS_KEY = `${SYSTEM_KEY_PREFIX}prefs`;
 
-export type Density = 'comfortable' | 'compact';
+/** Rows ('comfortable', the default), tighter rows ('compact'), or the v0.1.5 picture cards. */
+export type Density = 'comfortable' | 'compact' | 'pictures';
 export type WorkMode = 'order' | 'count';
 
 export interface DevicePrefs {
@@ -42,7 +43,7 @@ export const parsePrefs = (text: string | null): DevicePrefs => {
       recent: ids(raw.recent, MAX_RECENT),
       lastSupplier: typeof raw.lastSupplier === 'string' ? raw.lastSupplier : '',
       mode: raw.mode === 'count' ? 'count' : 'order',
-      density: raw.density === 'compact' ? 'compact' : 'comfortable',
+      density: raw.density === 'compact' || raw.density === 'pictures' ? raw.density : 'comfortable',
     };
   } catch {
     return { ...DEFAULT_PREFS };

@@ -1,15 +1,17 @@
 // components/counter/CounterHome.tsx
 //
-// The Counter tab: the supplier selector (current, pinned and recent suppliers, and All suppliers),
-// then that supplier's products in compact sections. Search looks across every supplier. Which
-// sections are open and where the list was scrolled are kept when leaving and coming back.
-//   Order mode: "+" adds one to the saved order; the tray at the bottom shows this supplier's part
-//               of the order and opens it for review and sharing.
-//   Count mode: each row opens the counting keypad; Save & Next follows the rows on screen.
+// The Counter tab (v0.1.6): one compact bar (the supplier button and Order | Count, then one row of
+// filter pills) that slides away while scrolling down and comes back on any scroll up, then the
+// supplier's products as rows (CounterRow; "Large pictures" in Settings keeps the cards). Search
+// looks across every supplier. The chosen pill and the scroll position are kept on the phone.
+//   Order mode: "+" adds one case (or item) to the saved order, with Undo; the ✓ quantity opens the
+//               adjuster. The tray at the bottom shows this supplier's part of the order.
+//   Count mode: "Count with photos" first (shelf photos), and each row's Count opens the keypad;
+//               Save & Next follows the rows on screen.
 //   Boar's Head is a tick list (MEATS, CHEESES) with Create List; it is never counted or priced.
 // Everything reads and writes the one saved order and the verified counts through the existing
 // functions; nothing is stored twice.
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Product } from '../../types';
@@ -34,8 +36,9 @@ import AttentionCard from './AttentionCard';
 import BackupReminder from './BackupReminder';
 import ProductCard from './ProductCard';
 import FilterPills, { PillOption } from './FilterPills';
-import { useLargeText } from '../../hooks/useLargeText';
 import CounterRow, { RowMode } from './CounterRow';
+import QuantitySheet from './QuantitySheet';
+import { useHideOnScroll } from '../../hooks/useHideOnScroll';
 import CountSheet from './CountSheet';
 import ProductSheet from './ProductSheet';
 import ShareSheet from './ShareSheet';
@@ -63,6 +66,7 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   const { products, suppliers, currentOrder, getProductById, getSupplierById, addToOrder, updateOrderItemQuantity, removeFromOrder, getWorkflow, getStock } = useInventory();
   const { t } = useTranslation();
   const [selected, setSelected] = useState<Product | null>(null);
+  const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [countingId, setCountingId] = useState<string | null>(null);
   // Counting from "Needs attention" follows that list instead of the screen.
   const [countOrder, setCountOrder] = useState<string[] | null>(null);
@@ -70,7 +74,32 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   const [sharing, setSharing] = useState<string | null>(null);
   // The chosen filter pill of each supplier, kept on the phone with the rest of the working place.
   const [filters, setFilters] = useState<Record<string, string>>(() => readWorkPlace().filters);
-  const largeText = useLargeText();
+  // The bar is pinned (and slides away while scrolling down) only while it is small; at the
+  // largest text sizes on small phones it would cover the products, so it simply scrolls away.
+  const barRef = useRef<HTMLElement>(null);
+  const [barPinned, setBarPinned] = useState(true);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar || typeof ResizeObserver === 'undefined') return;
+    const check = () => setBarPinned(bar.offsetHeight < window.innerHeight * 0.3);
+    const observer = new ResizeObserver(check);
+    observer.observe(bar);
+    window.addEventListener('resize', check);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', check);
+    };
+  });
+  const barHidden = useHideOnScroll(!query.trim() && barPinned);
+  const trayRef = useRef<HTMLDivElement>(null);
+  const [trayHeight, setTrayHeight] = useState(64);
+  useEffect(() => {
+    const tray = trayRef.current;
+    if (!tray || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => setTrayHeight(tray.offsetHeight));
+    observer.observe(tray);
+    return () => observer.disconnect();
+  });
   const toast = useToast();
   const navigate = useNavigate();
   const [prefs, setPrefs] = useDevicePrefs();
@@ -100,11 +129,11 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   const chooseFilter = (key: string) => {
     setFilters(prev => ({ ...prev, [activeId]: key }));
     saveWorkPlace(place => ({ ...place, filters: { ...place.filters, [activeId]: key } }));
-    // Show the chosen products from their start. At large text the bars are not pinned, so they
-    // scroll away and the products get the whole screen.
+    // Show the chosen products from their start. When the bar is not pinned (largest text), go
+    // straight to the products so they get the whole screen; the bar is one scroll up.
     requestAnimationFrame(() => {
       const list = document.getElementById('counter-products');
-      if (largeText && list) list.scrollIntoView({ block: 'start' });
+      if (!barPinned && list) list.scrollIntoView({ block: 'start' });
       else window.scrollTo(0, 0);
     });
   };
@@ -118,13 +147,37 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   const rowMode = (product: Product): RowMode =>
     getWorkflow(product.supplierId).orderStyle === 'items' ? 'list' : mode === 'count' && getWorkflow(product.supplierId).countStock ? 'count' : 'order';
 
+  const unitLabel = (product: Product) => (unitFor(product) === 'item' ? t('itemsUnit') : t('casesUnit'));
+  const shortName = (product: Product) => product.flavor || product.name;
+  // One tap adds one case (one item for item suppliers), with Undo right away.
   const add = (product: Product) => {
-    const quantity = quantityOf(product);
-    if (quantity > 0) updateOrderItemQuantity(product.id, quantity + 1, unitFor(product));
-    else addToOrder(product.id, 1);
+    const unit = unitFor(product);
+    addToOrder(product.id, 1);
+    toast(t('addedQuantity', { name: shortName(product), quantity: 1, unit: unitLabel(product) }), {
+      label: t('undo'),
+      run: () => {
+        const now = lineQuantity(currentOrderRef.current.items, product.id, unit);
+        updateOrderItemQuantity(product.id, now - 1, unit);
+      },
+    });
   };
-  const remove = (product: Product) => updateOrderItemQuantity(product.id, quantityOf(product) - 1, unitFor(product));
-  const uncheck = (product: Product) => removeFromOrder(product.id, 'item');
+  const changeQuantity = (product: Product, quantity: number) => updateOrderItemQuantity(product.id, quantity, unitFor(product));
+  const removeLine = (product: Product) => {
+    const unit = unitFor(product);
+    const before = quantityOf(product);
+    removeFromOrder(product.id, unit);
+    setAdjustingId(null);
+    toast(t('removedFromOrder', { name: shortName(product) }), {
+      label: t('undo'),
+      run: () => {
+        if (lineQuantity(currentOrderRef.current.items, product.id, unit) === 0) addToOrder(product.id, before);
+      },
+    });
+  };
+  // The newest order for Undo, which runs after later renders.
+  const currentOrderRef = useRef(currentOrder);
+  currentOrderRef.current = currentOrder;
+  const adjusting = adjustingId ? getProductById(adjustingId) ?? null : null;
 
   // Save & Next walks the counted products shown on screen (the chosen pill), in screen order.
   const orderedIds = useMemo(
@@ -222,24 +275,34 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   );
 
   const isList = activeWorkflow.orderStyle === 'items';
+  // The stock line shows what AttentionCard would show (in Order mode only verified low or out).
+  const showStockLine = attention.length > 0 && (mode === 'count' || attention.some(i => i.reason.kind === 'out' || i.reason.kind === 'low'));
   const trayTotals = trayGroup ? groupTotals(trayGroup) : null;
 
   return (
     <div className="space-y-3" data-testid="counter-home">
       {!search && (
-        <nav aria-label={t('suppliersLabel')} className={`${largeText ? '' : 'sticky top-below-header z-30'} -mx-3 space-y-2 bg-slate-100 px-3 pb-2 pt-2 dark:bg-[#0b1120]`}>
-          <SupplierSelector
-            suppliers={suppliers}
-            activeId={activeId}
-            quickIds={quickIds}
-            badges={badges}
-            onSelect={choose}
-          />
-          {/* Order | Count and the pills share one row; at large text the pills wrap below. */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
-            {activeWorkflow.countStock ? (
+        <nav
+          aria-label={t('suppliersLabel')}
+          ref={barRef}
+          data-testid="counter-bar"
+          data-pinned={barPinned || undefined}
+          className={`${barPinned ? 'sticky top-below-header z-30' : 'relative'} -mx-3 space-y-2 bg-slate-100 px-3 pb-2 pt-2 transition-transform duration-200 dark:bg-[#0b1120] ${barHidden ? '-translate-y-[calc(100%+var(--header-h)+var(--safe-top))]' : ''}`}
+        >
+          {/* The supplier and Order | Count share one row; at very large text Order | Count moves
+              below, whole (its words never break). */}
+          <div className="flex flex-wrap items-center gap-2">
+            <SupplierSelector
+              className="flex-1 basis-[8rem]"
+              suppliers={suppliers}
+              activeId={activeId}
+              quickIds={quickIds}
+              badges={badges}
+              onSelect={choose}
+            />
+            {activeWorkflow.countStock && (
               <Segmented
-                className="w-[9.5rem] max-w-full flex-shrink-0"
+                className="ms-auto flex-shrink-0"
                 label={t('counterModeLabel')}
                 value={mode}
                 onChange={onMode}
@@ -248,15 +311,10 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
                   { value: 'count', label: t('modeCount'), testId: 'mode-count' },
                 ]}
               />
-            ) : (
-              isList && <p className="min-w-0 basis-full px-1 text-sm text-slate-600 dark:text-slate-300" data-testid="list-hint">{t('listHint')}</p>
-            )}
-            {groups.length > 1 && (
-              <div className="min-w-0 flex-1 basis-[10rem]">
-                <FilterPills options={pills} value={activeFilter} onChange={chooseFilter} />
-              </div>
             )}
           </div>
+          {isList && <p className="px-1 text-sm leading-snug text-slate-600 dark:text-slate-300" data-testid="list-hint">{t('listHint')}</p>}
+          {groups.length > 1 && <FilterPills options={pills} value={activeFilter} onChange={chooseFilter} />}
         </nav>
       )}
 
@@ -264,9 +322,9 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
 
       {!search && <BackupReminder />}
 
-      {!search && (
+      {!search && (showStockLine || mode === 'count' && activeWorkflow.countStock) && (
         <div className="flex flex-wrap items-center gap-x-1">
-          <div className="min-w-0 flex-1 basis-[12rem]">
+          <div className="min-w-0 flex-1 basis-[16rem]">
             <AttentionCard
               items={attention}
               mode={mode}
@@ -280,11 +338,11 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
           {mode === 'count' && activeWorkflow.countStock && (
             <button
               type="button"
-              className="ms-auto inline-flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-cyan-700 dark:text-cyan-300"
-              onClick={() => navigate('/counter/shelf')}
+              className="ms-auto inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full bg-cyan-600 px-4 py-1 text-start text-sm font-bold leading-tight text-white shadow-sm dark:bg-cyan-400 dark:text-slate-950"
+              onClick={() => navigate('/counter/shelf', { state: { start: true } })}
               data-testid="open-shelf-check"
             >
-              <CameraIcon className="h-5 w-5" /> {t('shelfCheck')}
+              <CameraIcon className="h-5 w-5 flex-shrink-0" /> <span className="min-w-0">{t('countWithPhotos')}</span>
             </button>
           )}
         </div>
@@ -309,7 +367,8 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
         )
       ) : (
         shownGroups.map(group => {
-          const asList = getWorkflow(group.products[0]?.supplierId ?? activeId).orderStyle === 'items' || prefs.density === 'compact';
+          // Rows by default; the cards only for "Large pictures" (never for item lists).
+          const asList = getWorkflow(group.products[0]?.supplierId ?? activeId).orderStyle === 'items' || prefs.density !== 'pictures';
           const heading = search || (activeFilter === 'all' && groups.length > 1);
           return (
             <section key={group.key} data-testid="product-section" aria-label={groupLabel(group)}>
@@ -326,12 +385,13 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
                       product={product}
                       mode={rowMode(product)}
                       quantity={quantityOf(product)}
+                      unitLabel={unitLabel(product)}
                       olderCaseQuantity={olderCasesOf(product)}
+                      supplierName={getSupplierById(product.supplierId)?.name}
                       onOpen={setSelected}
                       onAdd={add}
-                      onRemove={remove}
+                      onAdjust={p => setAdjustingId(p.id)}
                       onCount={startCount}
-                      onUncheck={uncheck}
                       groupedBy={groupedBy}
                     />
                   ))}
@@ -346,7 +406,7 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
                       quantity={quantityOf(product)}
                       onOpen={setSelected}
                       onAdd={add}
-                      onRemove={remove}
+                      onRemove={p => changeQuantity(p, quantityOf(p) - 1)}
                       onCount={startCount}
                       groupedBy={groupedBy}
                     />
@@ -360,11 +420,12 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
 
       </div>
 
-      {/* Room for the tray, so the last row is never hidden behind it. */}
-      {showTray && <div className="h-16" aria-hidden="true" />}
+      {/* Room for the tray (its real height: it grows with the text), so the last row is never
+          hidden behind it. */}
+      {showTray && <div style={{ height: trayHeight + 8 }} aria-hidden="true" />}
 
       {showTray && trayGroup && trayTotals && (
-        <div className="fixed inset-x-0 bottom-[calc(var(--nav-h)+var(--safe-bottom))] z-30 px-safe">
+        <div ref={trayRef} className="fixed inset-x-0 bottom-[calc(var(--nav-h)+var(--safe-bottom))] z-30 px-safe">
           <div className="mx-auto max-w-3xl px-3 pb-2">
             <button
               type="button"
@@ -391,6 +452,14 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
         </div>
       )}
 
+      <QuantitySheet
+        product={adjusting}
+        quantity={adjusting ? quantityOf(adjusting) : 0}
+        unitLabel={adjusting ? unitLabel(adjusting) : ''}
+        onChange={changeQuantity}
+        onRemove={removeLine}
+        onClose={() => setAdjustingId(null)}
+      />
       <ProductSheet product={selected} onClose={() => setSelected(null)} onCount={startCount} />
       <CountSheet
         productId={countingId}

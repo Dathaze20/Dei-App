@@ -3,6 +3,7 @@
 // DeliOrderNYC's one interface. Top bar, bottom navigation and menu around four places:
 //   #/counter           Counter: suppliers and products, ordering and counting
 //   #/counter/orders    Orders: each supplier's part of the order (share, QR, copy, clear)
+//   #/counter/shelf     Camera: shelf photos (new check, unfinished checks, review, confirm)
 //   #/counter/catalog   Catalog: products and suppliers (add, edit, shelf tags, delete)
 //   #/counter/settings  Settings: store profile, appearance, backup, restore, updates, about
 // Older addresses keep working: #/product/<id> (shelf-tag QR codes) opens that product on Counter,
@@ -20,6 +21,8 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { withSupplierChosen } from '../../utils/devicePrefs';
 import { StartupNotice } from '../../utils/safetyBootstrap';
 import { DeliNative, isAndroidApp } from '../../utils/nativeApp';
+import { PICKUP_EVENT, Pickup, collectShelfPhotos } from '../../utils/shelfCamera';
+import { cameraErrorKey, nativeShelfCamera, pickupNote, shelfPhotoStore } from './shelfCameraApp';
 import { ToastProvider, useToast } from '../ui/Toast';
 import CounterDrawer from './CounterDrawer';
 import CounterCatalog from './CounterCatalog';
@@ -74,6 +77,32 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Shelf photos: whenever the app starts or comes back, store any photo the camera left in the
+  // inbox (also when Android closed the app while the camera was open) and show it in its check.
+  useEffect(() => {
+    const native = nativeShelfCamera();
+    if (!native) return;
+    const collect = () => {
+      collectShelfPhotos(native, shelfPhotoStore, prefs.lastSupplier || null).catch(error => toast(t(cameraErrorKey(error))));
+    };
+    const onVisible = () => document.visibilityState === 'visible' && collect();
+    collect();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const onPickup = (event: Event) => {
+      const pickup = (event as CustomEvent<Pickup>).detail;
+      if (!pickup.checkId) return;
+      // Open the check the photo went into; it shows what happened (pickupNote).
+      const target = `/counter/shelf/${pickup.checkId}`;
+      if (window.location.hash.replace(/^#/, '') !== target) navigate(target, { state: { note: pickupNote(pickup, t) } });
+    };
+    window.addEventListener(PICKUP_EVENT, onPickup);
+    return () => window.removeEventListener(PICKUP_EVENT, onPickup);
+  }, [navigate, t]);
 
   // Shelf-tag links: show the product's supplier and open the product.
   useEffect(() => {

@@ -1,10 +1,9 @@
 // components/counter/SupplierSelector.tsx
 //
-// Choosing a supplier without swiping sideways. The everyday bar shows the current supplier (tap
-// it for every supplier) and, on the same line, the recently used ones that fit; any that do not
-// fit are simply left for the full list, never cut off. "All suppliers" opens a grid that fits
-// the screen and the text size (fewer columns at larger text), with search. Order-line counts
-// show on both.
+// Choosing a supplier: one compact button with the current supplier (v0.1.6; the row of recent
+// chips is gone to give the products the screen). Tapping it opens a grid that fits the screen and
+// the text size, with the recently used suppliers first, then all of them, and search. Order-line
+// counts show on both.
 import React, { useMemo, useState } from 'react';
 import { Supplier } from '../../types';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -18,6 +17,7 @@ interface SupplierSelectorProps {
   quickIds: string[];
   badges: Record<string, number>;
   onSelect: (id: string) => void;
+  className?: string;
 }
 
 const Badge: React.FC<{ count: number; tone: 'light' | 'teal' }> = ({ count, tone }) =>
@@ -27,7 +27,7 @@ const Badge: React.FC<{ count: number; tone: 'light' | 'teal' }> = ({ count, ton
     </span>
   ) : null;
 
-const SupplierSelector: React.FC<SupplierSelectorProps> = ({ suppliers, activeId, quickIds, badges, onSelect }) => {
+const SupplierSelector: React.FC<SupplierSelectorProps> = ({ suppliers, activeId, quickIds, badges, onSelect, className = '' }) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -68,53 +68,21 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({ suppliers, activeId
 
   return (
     <>
-      {/* One row, no sideways scrolling: the current supplier (tap it for the full list; its name
-          shortens on very large text), "All" (always shown), then recent ones; those
-          that do not fit wrap out of sight (they are all in the full list), so nothing is cut in
-          half. overflow: clip (not hidden) so focus can never scroll a hidden chip into view. */}
-      <div className="flex h-11 min-w-0 gap-2" data-testid="supplier-bar">
-        {active && (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label={t('currentSupplierChange', { name: active.name })}
-            data-testid="current-supplier"
-            className="flex h-11 min-w-0 max-w-[70%] flex-shrink items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 text-sm font-bold text-white shadow-md shadow-cyan-500/25"
-          >
-            <span className="min-w-0 truncate">{active.name}</span>
-            <Badge count={badges[active.id] ?? 0} tone="light" />
-            <ChevronDownIcon className="h-4 w-4 flex-shrink-0" />
-          </button>
-        )}
+      {/* One compact button: the current supplier and its order lines. Tapping it opens every
+          supplier, with the recent ones first. */}
+      {active && (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label={t('allSuppliers')}
-          data-testid="all-suppliers"
-          className="flex h-11 flex-shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-sm font-semibold text-cyan-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-cyan-300 dark:ring-white/10"
+          aria-label={t('currentSupplierChange', { name: active.name })}
+          data-testid="current-supplier"
+          className={`flex min-h-11 min-w-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-1 text-sm font-bold text-white shadow-md shadow-cyan-500/25 ${className}`}
         >
-          <Squares2X2Icon className="h-5 w-5 flex-shrink-0" />
-          <span className="max-[379px]:sr-only">{t('allShort')}</span>
+          <span dir="auto" className="min-w-0 break-words text-start leading-tight">{active.name}</span>
+          <Badge count={badges[active.id] ?? 0} tone="light" />
+          <ChevronDownIcon className="ms-auto h-4 w-4 flex-shrink-0" />
         </button>
-        <div className="quick-chips flex h-11 min-w-0 flex-1 flex-wrap gap-2 overflow-clip">
-        {quickIds.map(id => {
-          const supplier = byId.get(id);
-          if (!supplier) return null;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onSelect(id)}
-              data-testid="quick-supplier"
-              className="flex h-11 min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-3.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-white/10"
-            >
-              <span className="min-w-0 truncate">{supplier.name}</span>
-              <Badge count={badges[id] ?? 0} tone="teal" />
-            </button>
-          );
-        })}
-        </div>
-      </div>
+      )}
 
       <Sheet
         open={open}
@@ -144,7 +112,16 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({ suppliers, activeId
               )}
             </div>
           )}
+          {!search && quickIds.length > 0 && (
+            <section>
+              <h3 className={`${ui.eyebrow} mb-1`}>{t('recentSuppliers')}</h3>
+              <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(min(100%,9rem),1fr))]" data-testid="supplier-grid-recent">
+                {quickIds.map(id => byId.get(id)).filter((x): x is Supplier => !!x).map(tile)}
+              </div>
+            </section>
+          )}
           <section>
+            {!search && quickIds.length > 0 && <h3 className={`${ui.eyebrow} mb-1`}>{t('allSuppliers')}</h3>}
             {shown.length === 0 ? (
               <p className={ui.muted}>{t('noSuppliersMatch')}</p>
             ) : (
