@@ -74,12 +74,14 @@ test('last saved order on the supplier, and reusing only the chosen lines', asyn
 test('the working place (scroll, closed sections) survives the app being closed', async ({ page }) => {
   await seed(page, REAL, '/counter');
   await page.getByTestId('counter-group').first().locator('button').first().click(); // close the first section
-  await page.evaluate(() => window.scrollTo(0, 900));
+  await page.evaluate(() => window.scrollTo(0, 500));
   await page.waitForTimeout(900);
+  const saved = await page.evaluate(() => Math.round(window.scrollY));
+  expect(saved).toBeGreaterThan(300);
   await page.reload();
   await expect(page.getByTestId('counter-home')).toBeVisible();
   await page.waitForTimeout(400);
-  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(700);
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - saved)).toBeLessThanOrEqual(2);
   await expect(page.getByTestId('counter-group').first().locator('button').first()).toHaveAttribute('aria-expanded', 'false');
   // Device-only: never part of the deli data.
   expect(await page.evaluate(() => localStorage.getItem('deliordernyc_sys_place'))).toContain('"scroll"');
