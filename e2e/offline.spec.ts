@@ -143,6 +143,8 @@ const NOT_TAILWIND = new Set([
   'counter-ui', // <html> marker for the Counter look (index.css uses it as html.counter-ui)
   'row-pad', // density hooks, styled through html[data-density] in index.css
   'row-thumb',
+  'row-meta',
+  'quick-chips', // container for the pinned/recent supplier chips (index.css container query)
 ]);
 
 test('every class on the existing screens has CSS in the bundled stylesheet', async ({ page }) => {

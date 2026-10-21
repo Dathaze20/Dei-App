@@ -81,18 +81,18 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({ suppliers, activeId
 
   return (
     <>
-      {/* One row, no sideways scrolling: the current supplier first (tap it for the full list),
-          then "All", then pinned and recent ones; any that do not fit wrap out of sight (they are
-          all in the full list), so nothing is ever cut in half. overflow: clip (not hidden) so
-          focus can never scroll a hidden chip into the row. */}
-      <div className="flex h-11 min-w-0 flex-wrap gap-2 overflow-clip" data-testid="supplier-bar">
+      {/* One row, no sideways scrolling: the current supplier (tap it for the full list; its name
+          shortens on very large text), "All" (always shown), then pinned and recent ones; those
+          that do not fit wrap out of sight (they are all in the full list), so nothing is cut in
+          half. overflow: clip (not hidden) so focus can never scroll a hidden chip into view. */}
+      <div className="flex h-11 min-w-0 gap-2" data-testid="supplier-bar">
         {active && (
           <button
             type="button"
             onClick={() => setOpen(true)}
             aria-label={t('currentSupplierChange', { name: active.name })}
             data-testid="current-supplier"
-            className="flex h-11 max-w-full min-w-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 text-sm font-bold text-white shadow-md shadow-cyan-500/25"
+            className="flex h-11 min-w-0 max-w-[70%] flex-shrink items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 text-sm font-bold text-white shadow-md shadow-cyan-500/25"
           >
             <span className="min-w-0 truncate">{active.name}</span>
             <Badge count={badges[active.id] ?? 0} tone="light" />
@@ -106,9 +106,10 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({ suppliers, activeId
           data-testid="all-suppliers"
           className="flex h-11 flex-shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-sm font-semibold text-cyan-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-cyan-300 dark:ring-white/10"
         >
-          <Squares2X2Icon className="h-5 w-5" />
-          <span>{t('allShort')}</span>
+          <Squares2X2Icon className="h-5 w-5 flex-shrink-0" />
+          <span className="max-[379px]:sr-only">{t('allShort')}</span>
         </button>
+        <div className="quick-chips flex h-11 min-w-0 flex-1 flex-wrap gap-2 overflow-clip">
         {quickIds.map(id => {
           const supplier = byId.get(id);
           if (!supplier) return null;
@@ -118,14 +119,15 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({ suppliers, activeId
               type="button"
               onClick={() => onSelect(id)}
               data-testid="quick-supplier"
-              className="flex h-11 flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-3.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-white/10"
+              className="flex h-11 min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-3.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-white/10"
             >
-              {favorites.includes(id) && <StarIcon className="h-3.5 w-3.5 text-amber-500" filled />}
-              {supplier.name}
+              {favorites.includes(id) && <StarIcon className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" filled />}
+              <span className="min-w-0 truncate">{supplier.name}</span>
               <Badge count={badges[id] ?? 0} tone="teal" />
             </button>
           );
         })}
+        </div>
       </div>
 
       <Sheet

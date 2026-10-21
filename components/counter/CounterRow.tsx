@@ -85,8 +85,11 @@ const CounterRow: React.FC<CounterRowProps> = ({ product, mode, quantity, olderC
         {/* Up to two lines: the flavor is often what tells two products apart ("Caution Extreme
             Fruit Punch" / "Caution Extreme Performance"), so it is never cut to one line. */}
         <p dir="auto" className="line-clamp-2 break-words rtl:text-right text-[0.9375rem] font-semibold leading-snug text-slate-900 dark:text-slate-50" data-testid="row-name">{primary}</p>
-        {secondary && <p dir="auto" className="truncate rtl:text-right text-xs leading-snug text-slate-500 dark:text-slate-400">{secondary}</p>}
-        <StockLabel product={product} className="mt-0.5 leading-snug" />
+        {/* Compact density puts these two on one line (index.css, .row-meta). */}
+        <div className="row-meta">
+          {secondary && <p dir="auto" className="truncate rtl:text-right text-xs leading-snug text-slate-500 dark:text-slate-400">{secondary}</p>}
+          <StockLabel product={product} className="mt-0.5 leading-snug" />
+        </div>
         {olderCaseQuantity > 0 && (
           <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">{t('olderCasesNote', { quantity: olderCaseQuantity })}</p>
         )}

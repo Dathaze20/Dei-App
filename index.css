@@ -128,3 +128,24 @@ html[data-density='compact'] [data-testid='counter-group'] > button {
   padding-top: 0.25rem;
   padding-bottom: 0.25rem;
 }
+html[data-density='compact'] .row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5rem;
+}
+html[data-density='compact'] .row-meta > * {
+  margin-top: 0;
+}
+
+/* Pinned and recent suppliers next to the current one: when there is not room for even one
+   readable chip (very large text, narrow phones) the row is left empty rather than showing a
+   sliver; every supplier is still one tap away under "All". */
+.quick-chips {
+  container-type: inline-size;
+}
+@container (max-width: 7em) {
+  .quick-chips > * {
+    display: none;
+  }
+}
