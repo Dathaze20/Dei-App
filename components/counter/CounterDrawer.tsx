@@ -65,7 +65,7 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
               initial={{ x: from }}
               animate={{ x: 0 }}
               exit={{ x: from }}
-              transition={{ type: 'spring', stiffness: 420, damping: 40 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 44 }} // critically damped: never slides past the edge
             >
               <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2 dark:border-white/10">
                 <div className="min-w-0 flex-1">

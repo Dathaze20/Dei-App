@@ -112,8 +112,8 @@ test.describe('supplier selector: no sideways scrolling, favourites, recent, rem
     await seed(page, REAL);
     const pills = page.getByTestId('filter-pill');
     await expect(pills.first()).toHaveText(/^All/);
-    await expect(pills).toHaveCount(1 + 8);
-    await expect(page.getByTestId('product-section')).toHaveCount(8);
+    await expect(pills).toHaveCount(1 + 11); // All + Arizona's 11 package sizes, from the catalog
+    await expect(page.getByTestId('product-section')).toHaveCount(11);
     await pills.filter({ hasText: '12 oz. Can' }).click();
     await expect(page.getByTestId('counter-row')).toHaveCount(10);
     await expect(page.getByTestId('product-section').locator('h2')).toHaveCount(0);

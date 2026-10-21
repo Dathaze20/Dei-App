@@ -34,7 +34,7 @@ const FilterPills: React.FC<FilterPillsProps> = ({ options, value, onChange }) =
       role="group"
       aria-label={t('filterProducts')}
       data-testid="filter-pills"
-      className="-mx-3 flex snap-x gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="-me-3 flex snap-x gap-1.5 overflow-x-auto pe-3 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {options.map(option => {
         const active = option.key === value;

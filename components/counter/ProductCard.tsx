@@ -63,7 +63,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, mode, quantity, onOp
         >
           <p dir="auto" className="line-clamp-2 break-words text-[0.9375rem] font-semibold leading-snug text-slate-900 rtl:text-right dark:text-slate-50" data-testid="row-name">{primary}</p>
           {secondary && <p dir="auto" className="truncate text-[0.8125rem] leading-snug text-slate-500 rtl:text-right dark:text-slate-400">{secondary}</p>}
-          <StockLabel product={product} className="leading-snug" />
+          {/* Stock is for counting; while ordering it would only be noise (the stock line above the
+              cards still shows anything verified low or out). */}
+          {mode === 'count' && <StockLabel product={product} className="leading-snug" />}
         </div>
         <div className={mode === 'order' && selected ? 'card-action-inline' : 'card-action'}>
           {mode === 'count' ? (

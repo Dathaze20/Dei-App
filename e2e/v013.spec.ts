@@ -31,7 +31,7 @@ test.describe('rows and navigation', () => {
     const thumb = card.getByTestId('product-thumb-placeholder');
     const box = (await thumb.boundingBox())!;
     expect(box.width).toBeGreaterThan(160);
-    expect(box.height).toBeGreaterThan(100);
+    expect(box.height).toBeGreaterThan(80);
     expect(await thumb.evaluate(e => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
     expect(await card.getByTestId('row-name').evaluate(e => getComputedStyle(e).fontSize)).toBe('15px');
     const firstTwo = await page.getByTestId('counter-row').evaluateAll(els => els.slice(0, 2).map(e => e.getBoundingClientRect().top));

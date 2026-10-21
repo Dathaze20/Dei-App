@@ -100,7 +100,13 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   const chooseFilter = (key: string) => {
     setFilters(prev => ({ ...prev, [activeId]: key }));
     saveWorkPlace(place => ({ ...place, filters: { ...place.filters, [activeId]: key } }));
-    window.scrollTo(0, 0);
+    // Show the chosen products from their start. At large text the bars are not pinned, so they
+    // scroll away and the products get the whole screen.
+    requestAnimationFrame(() => {
+      const list = document.getElementById('counter-products');
+      if (largeText && list) list.scrollIntoView({ block: 'start' });
+      else window.scrollTo(0, 0);
+    });
   };
 
   const grouping = resolveGroupingMode(activeId);
@@ -229,10 +235,11 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
             badges={badges}
             onSelect={choose}
           />
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Order | Count and the pills share one row; at large text the pills wrap below. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
             {activeWorkflow.countStock ? (
               <Segmented
-                className="min-w-0 flex-1 basis-[13rem]"
+                className="w-[9.5rem] max-w-full flex-shrink-0"
                 label={t('counterModeLabel')}
                 value={mode}
                 onChange={onMode}
@@ -242,33 +249,48 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
                 ]}
               />
             ) : (
-              <p className="min-w-0 flex-1 basis-[13rem] px-1 text-sm text-slate-600 dark:text-slate-300" data-testid="list-hint">{isList ? t('listHint') : ''}</p>
+              isList && <p className="min-w-0 basis-full px-1 text-sm text-slate-600 dark:text-slate-300" data-testid="list-hint">{t('listHint')}</p>
+            )}
+            {groups.length > 1 && (
+              <div className="min-w-0 flex-1 basis-[10rem]">
+                <FilterPills options={pills} value={activeFilter} onChange={chooseFilter} />
+              </div>
             )}
           </div>
-          {groups.length > 1 && <FilterPills options={pills} value={activeFilter} onChange={chooseFilter} />}
         </nav>
       )}
 
       {search && <p className="px-1 text-sm text-slate-500 dark:text-slate-400" role="status">{t('searchResultsCount', { count: resultCount })}</p>}
 
       {!search && <BackupReminder />}
-      {!search && mode === 'count' && activeWorkflow.countStock && (
-        <button type="button" className={`${ui.secondary} w-full`} onClick={() => navigate('/counter/shelf')} data-testid="open-shelf-check">
-          <CameraIcon className="h-5 w-5" /> {t('shelfCheck')}
-        </button>
-      )}
+
       {!search && (
-        <AttentionCard
-          items={attention}
-          mode={mode}
-          onCount={(product, ids) => {
-            setSelected(null);
-            setCountOrder(ids);
-            setCountingId(product.id);
-          }}
-        />
+        <div className="flex flex-wrap items-center gap-x-1">
+          <div className="min-w-0 flex-1 basis-[12rem]">
+            <AttentionCard
+              items={attention}
+              mode={mode}
+              onCount={(product, ids) => {
+                setSelected(null);
+                setCountOrder(ids);
+                setCountingId(product.id);
+              }}
+            />
+          </div>
+          {mode === 'count' && activeWorkflow.countStock && (
+            <button
+              type="button"
+              className="ms-auto inline-flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-cyan-700 dark:text-cyan-300"
+              onClick={() => navigate('/counter/shelf')}
+              data-testid="open-shelf-check"
+            >
+              <CameraIcon className="h-5 w-5" /> {t('shelfCheck')}
+            </button>
+          )}
+        </div>
       )}
 
+      <div id="counter-products" className="scroll-mt-[calc(var(--safe-top)+var(--header-h)+0.5rem)] space-y-3">
       {groups.length === 0 ? (
         search ? (
           <p className="py-12 text-center text-slate-500 dark:text-slate-400">{t('noProductsMatch', { query: `"${query.trim()}"` })}</p>
@@ -335,6 +357,8 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
           );
         })
       )}
+
+      </div>
 
       {/* Room for the tray, so the last row is never hidden behind it. */}
       {showTray && <div className="h-16" aria-hidden="true" />}
