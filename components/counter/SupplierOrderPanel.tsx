@@ -9,7 +9,9 @@ import { SummaryGroup } from '../../utils/orderSummary';
 import ConfirmSheet from '../ui/ConfirmSheet';
 import { ui } from '../ui/styles';
 import { useToast } from '../ui/Toast';
-import { ListBulletIcon, PlusIcon, ShareIcon, TrashIcon } from '../shared/icons';
+import { ArchiveBoxIcon, ListBulletIcon, PlusIcon, ShareIcon, TrashIcon } from '../shared/icons';
+import { useNavigate } from 'react-router-dom';
+import { formatCountDate } from '../StockLabel';
 import OrderLines, { groupTotals, money } from './OrderLines';
 
 interface SupplierOrderPanelProps {
@@ -22,8 +24,10 @@ interface SupplierOrderPanelProps {
 }
 
 const SupplierOrderPanel: React.FC<SupplierOrderPanelProps> = ({ group, onShare, onAddMore, showHeading = true }) => {
-  const { addToOrder, removeFromOrder } = useInventory();
-  const { t } = useTranslation();
+  const { addToOrder, removeFromOrder, orderHistory } = useInventory();
+  const { t, language } = useTranslation();
+  const navigate = useNavigate();
+  const lastSaved = orderHistory.find(entry => entry.supplierId === group.supplier.id);
   const toast = useToast();
   const [confirmClear, setConfirmClear] = useState(false);
   const { lines, units } = groupTotals(group);
@@ -49,6 +53,21 @@ const SupplierOrderPanel: React.FC<SupplierOrderPanelProps> = ({ group, onShare,
       <div className="mt-2 border-t border-slate-100 dark:border-white/5">
         <OrderLines group={group} />
       </div>
+
+      {lastSaved && (
+        <button
+          type="button"
+          onClick={() => navigate('/counter/orders/history', { state: { supplier: group.supplier.id } })}
+          className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-xl px-1 text-start text-sm text-slate-600 dark:text-slate-300"
+          data-testid="last-saved-order"
+        >
+          <ArchiveBoxIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
+          <span className="min-w-0 flex-1">
+            {t('lastSavedOrder', { date: formatCountDate(lastSaved.savedAt, language), status: lastSaved.status === 'sent' ? t('statusSent') : t('statusPrepared') })}
+          </span>
+          <span className="flex-shrink-0 font-semibold text-cyan-700 dark:text-cyan-300">{t('viewShort')}</span>
+        </button>
+      )}
 
       <div className="mt-2 grid grid-cols-2 gap-2">
         <button type="button" className={`${ui.primary} col-span-2`} onClick={() => onShare(group.supplier.id)}>

@@ -74,12 +74,31 @@ The key is created **on your phone** and stored in only two places: your own bac
    - **Variables** tab → **New repository variable** `ANDROID_SIGNING_CERT_SHA256`: the fingerprint from step 4.
 8. **Clean up.** Delete `deliordernyc-key-base64.txt` from Downloads. Keep the `.p12` backups.
 
-## Making a release (owner approval at every step)
-1. **Raise the version.** A reviewed PR raises `version` in `package.json` and is merged into `main`.
-2. **Build.** Actions → **Android release APK (manual)** → Run workflow on `main`.
-   - Without the draft option, it only builds and verifies; download the APK artifact to review it.
-   - With **create_draft_release**, the verified APK is attached to a **draft** release. The app cannot see drafts.
-3. **Publish.** You review the draft on GitHub and press **Publish release**. From then on, Check for updates offers it.
+## Making a release (the owner's approval is the gate)
+1. **Raise the version.** A reviewed PR raises `version` in `package.json` and is merged into `main`. Merging never builds or publishes anything.
+2. **Approve.** The owner approves that exact version and `main` commit.
+3. **Publish.** Actions → **Android release APK (manual)** → Run workflow on `main`, with:
+   - **publish_approved_release** ticked;
+   - **approved_version**, e.g. `0.1.4`;
+   - **approved_commit**, the approved `main` commit (at least 7 characters).
+
+   This can be started from the GitHub page or by Claude Code after the owner's approval.
+
+   The run publishes only if **all** of these hold, in this order:
+   - the commit and version match the approval, otherwise nothing is built;
+   - the signing key opens and matches the registered fingerprint;
+   - type-check and unit tests pass;
+   - the signed APK is built, `apksigner` confirms the registered certificate, and `aapt2` confirms the app ID, the versionCode and the `https://localhost` origin;
+   - the full CI run (browser tests, Android build check, Pages check) passed on that exact commit;
+   - the APK still matches its recorded SHA-256.
+
+   It then publishes `vX.Y.Z` as the latest stable release, or finishes that version's own draft if one exists. It never makes a second release for a tag, and never touches a published one.
+
+   Finally it reads GitHub's latest-release API and checks it shows that tag with the APK at the address and SHA-256 digest the in-app updater expects. The release link is in the run summary.
+4. **Install.** On the phone: Menu → App updates → Check for updates → Download & install.
+
+- **Draft only.** Without publishing, **create_draft_release** still attaches the APK to a draft, and nothing at all only builds and verifies.
+- **Extra click (optional).** The publish job runs in the `release` environment. Add *Required reviewers* to it (Settings → Environments → release) to require an approval click on GitHub as well.
 
 The first install is done by hand: download the APK from the release on the phone, open it, and allow the install. Every later update goes through Check for updates.
 

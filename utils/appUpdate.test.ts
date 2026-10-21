@@ -154,3 +154,15 @@ describe('asking GitHub', () => {
     expect(result.state === 'available' && result.update.versionCode).toBe(3_001);
   });
 });
+
+describe('v0.1.2 straight to v0.1.4 (v0.1.3 was never published)', () => {
+  it('installed 0.1.2 (1002) is offered 0.1.4 (1004) directly', () => {
+    expect(versionCodeOf('v0.1.4')).toBe(1004);
+    const result = evaluateRelease(release('v0.1.4'), 1002);
+    expect(result).toMatchObject({ state: 'available', update: { version: '0.1.4', versionCode: 1004, sha256: DIGEST } });
+  });
+
+  it('the unpublished v0.1.3 draft is never offered', () => {
+    expect(evaluateRelease(release('v0.1.3', { draft: true }), 1002)).toEqual({ state: 'no-release' });
+  });
+});

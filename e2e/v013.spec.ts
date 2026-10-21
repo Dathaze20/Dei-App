@@ -195,7 +195,7 @@ test.describe('order history', () => {
 test.describe('backup reminder', () => {
   test('shows until a backup leaves the phone; Not now hides it; Settings says what is actually known', async ({ page }) => {
     await seed(page, REAL, '/counter');
-    await expect(page.getByTestId('backup-reminder')).toContainText('Products, counts and orders live only on this phone');
+    await expect(page.getByTestId('backup-reminder')).toContainText('No backup saved from this phone yet');
     await page.getByRole('button', { name: 'Not now' }).click();
     await expect(page.getByTestId('backup-reminder')).toHaveCount(0);
     await page.reload();
