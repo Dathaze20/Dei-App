@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { imageSource, parsePlaceholder, shortLabel } from './productImage';
 import { isValidPhotoData, parsePhotoExport } from './photoStore';
+import { captionLines } from '../components/ProductThumb';
 
 describe('product pictures', () => {
   it('reads the catalog tiles from their address (offline, no request)', () => {
@@ -38,5 +39,12 @@ describe('product pictures', () => {
     expect(parsePhotoExport(text)?.map(p => p.id)).toEqual(['pok']);
     expect(parsePhotoExport('{"format":"other"}')).toBeNull();
     expect(parsePhotoExport('nope')).toBeNull();
+  });
+
+  it('tile captions wrap into at most three short lines', () => {
+    expect(captionLines('RX Fruit Punch')).toEqual(['RX Fruit', 'Punch']);
+    expect(captionLines('AZ Rooibos')).toEqual(['AZ', 'Rooibos']);
+    expect(captionLines('Caution Extreme Fruit Punch Large')).toEqual(['Caution', 'Extreme', 'Fruit…']);
+    expect(captionLines('Supercalifragilistic')).toEqual(['Supercali…']);
   });
 });

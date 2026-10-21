@@ -119,7 +119,14 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
       if (searchOpen) {
         setQuery('');
         setSearchOpen(false);
-      } else navigate(location.pathname === '/counter/orders/history' ? '/counter/orders' : '/counter', { replace: true });
+        return true;
+      }
+      // Read the address now, not from the last render: a second quick Back after reaching
+      // Counter must leave the app, even before the screen has finished drawing.
+      const path = window.location.hash.replace(/^#/, '').replace(/\/$/, '');
+      if (path === '/counter') return false;
+      navigate(path === '/counter/orders/history' ? '/counter/orders' : '/counter', { replace: true });
+      return true;
     },
     'screen',
   );

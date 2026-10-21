@@ -46,14 +46,14 @@ const AttentionCard: React.FC<AttentionCardProps> = ({ items, onCount }) => {
         type="button"
         onClick={() => setOpen(true)}
         data-testid="attention-card"
-        className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-amber-50 px-3 py-2 text-start ring-1 ring-amber-200 dark:bg-amber-400/10 dark:ring-amber-400/25"
+        className="flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-amber-50 px-3 py-2 text-start ring-1 ring-amber-200 dark:bg-amber-400/10 dark:ring-amber-400/25"
       >
         <AlertTriangleIcon className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-300" />
-        <span className="min-w-0 flex-1">
+        <span className="min-w-0 flex-1 basis-[9rem]">
           <span className="block text-sm font-bold text-amber-900 dark:text-amber-200">{t('attentionTitle')}</span>
           <span className="block text-xs text-amber-800 dark:text-amber-300">{parts.join(' · ')}</span>
         </span>
-        <span className="flex flex-shrink-0 items-center gap-0.5 text-sm font-bold text-amber-800 dark:text-amber-200">
+        <span className="ms-auto flex flex-shrink-0 items-center gap-0.5 text-sm font-bold text-amber-800 dark:text-amber-200">
           {t('attentionReview')}
           <ChevronRightIcon className="h-4 w-4 rtl:-scale-x-100" />
         </span>

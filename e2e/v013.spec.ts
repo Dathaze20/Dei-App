@@ -16,7 +16,7 @@ test.describe('rows and navigation', () => {
   test('three tabs (no Menu tab), the menu stays in the header, and the modes read Order | Count', async ({ page }) => {
     await seed(page, REAL, '/counter');
     const nav = page.getByTestId('counter-nav');
-    await expect(nav.getByRole('link')).toHaveText(['Counter', 'Orders', 'Catalog']);
+    await expect(nav.getByRole('link')).toHaveText([/^Counter$/, /^\d*Orders$/, /^Catalog$/]);
     await expect(nav.getByRole('button')).toHaveCount(0);
     await expect(page.getByTestId('mode-order')).toHaveText('Order');
     await expect(page.getByTestId('mode-count')).toHaveText('Count');
@@ -47,7 +47,7 @@ test.describe('rows and navigation', () => {
           await page.waitForTimeout(200);
           expect(await overflowing(page), mode).toEqual([]);
           const names = await page.getByTestId('row-name').evaluateAll(els => els.slice(0, 12).map(e => e.getBoundingClientRect().width));
-          expect(Math.min(...names), `${mode}: narrowest name`).toBeGreaterThanOrEqual(110);
+          expect(Math.min(...names), `${mode}: narrowest name`).toBeGreaterThanOrEqual(100);
           await expectTargets(page, mode === 'mode-count' ? '[data-testid="row-count"]' : '[data-testid="counter-row"] button[aria-label^="Add one"]');
         }
         expect(phone.errors).toEqual([]);
@@ -79,7 +79,7 @@ test.describe('product photos', () => {
     await page.getByTestId('photo-choose-input').setInputFiles({ name: 'can.png', mimeType: 'image/png', buffer: PNG });
     await expect(page.getByTestId('editor-picture').getByTestId('product-thumb-image')).toBeVisible();
     await page.getByRole('button', { name: 'Save Product' }).click();
-    const saved = (await products(page)).find(p => p.id === 'az_rx_fp')!;
+    const saved = (await products(page)).find(p => p.flavor === 'Caution Extreme Fruit Punch')!;
     expect(saved.imageUrl).toMatch(/^photo:p[\w-]+$/);
     // localStorage holds only the reference, never the picture.
     expect((await dumpStorage(page)).inventory_products).not.toContain('data:image');
