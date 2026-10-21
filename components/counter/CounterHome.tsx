@@ -13,25 +13,28 @@ import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Product } from '../../types';
-import { compareProducts, groupSupplierProducts, resolveGroupingMode, startsCollapsed, ProductGroup } from '../../utils/productGrouping';
+import { compareProducts, groupSupplierProducts, resolveGroupingMode, ProductGroup } from '../../utils/productGrouping';
 import { countingOrder } from '../../utils/countKeypad';
 import { draftLineCounts, lineQuantity, supplierDraftSummary } from '../../utils/supplierDraft';
 import { lineUnit } from '../../utils/supplierWorkflow';
 import Segmented from '../ui/Segmented';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
-import { ArrowsPointingInIcon, ChevronRightIcon, ChevronUpDownIcon, ListBulletIcon, Squares2X2Icon } from '../shared/icons';
+import { CameraIcon, ChevronRightIcon, ListBulletIcon, Squares2X2Icon } from '../shared/icons';
 import EmptyState from '../ui/EmptyState';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../ui/Toast';
 import { useDevicePrefs } from '../../hooks/useDevicePrefs';
-import { quickSuppliers, withFavoriteToggled, withSupplierChosen, WorkMode } from '../../utils/devicePrefs';
+import { quickSuppliers, withSupplierChosen, WorkMode } from '../../utils/devicePrefs';
 import { attentionList } from '../../utils/attention';
+import { normalizeCode } from '../../utils/shelfCheck';
 import { readWorkPlace, saveWorkPlace } from '../../utils/workPlace';
 import SupplierSelector from './SupplierSelector';
 import AttentionCard from './AttentionCard';
 import BackupReminder from './BackupReminder';
-import CounterGroup from './CounterGroup';
+import ProductCard from './ProductCard';
+import FilterPills, { PillOption } from './FilterPills';
+import { useLargeText } from '../../hooks/useLargeText';
 import CounterRow, { RowMode } from './CounterRow';
 import CountSheet from './CountSheet';
 import ProductSheet from './ProductSheet';
@@ -47,9 +50,6 @@ interface CounterHomeProps {
   onSelectSupplier: (id: string) => void;
   mode: CounterMode;
   onMode: (mode: CounterMode) => void;
-  /** Sections opened or closed by the person, kept by the shell while the app is open. */
-  toggled: Record<string, boolean>;
-  onToggled: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   /** A product to open (from a shelf-tag link). */
   openProductId: string | null;
   onProductOpened: () => void;
@@ -57,12 +57,9 @@ interface CounterHomeProps {
 
 /** Where each supplier's list was scrolled, while the app is open. */
 const scrollBySupplier = new Map<string, number>(Object.entries(readWorkPlace().scroll));
-/** Scroll margin for sections, so a section jumped to sits under the sticky bars. */
-const SECTION_SCROLL = 'scroll-mt-[calc(var(--safe-top)+var(--header-h)+7.5rem)]';
-
 const SECTION_KEYS = { meats: 'listMeats', cheeses: 'listCheeses', other: 'listOther' } as const;
 
-const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSupplier, mode, onMode, toggled, onToggled, openProductId, onProductOpened }) => {
+const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSupplier, mode, onMode, openProductId, onProductOpened }) => {
   const { products, suppliers, currentOrder, getProductById, getSupplierById, addToOrder, updateOrderItemQuantity, removeFromOrder, getWorkflow, getStock } = useInventory();
   const { t } = useTranslation();
   const [selected, setSelected] = useState<Product | null>(null);
@@ -71,7 +68,9 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   const [countOrder, setCountOrder] = useState<string[] | null>(null);
   const [trayOpen, setTrayOpen] = useState(false);
   const [sharing, setSharing] = useState<string | null>(null);
-  const [jumpOpen, setJumpOpen] = useState(false);
+  // The chosen filter pill of each supplier, kept on the phone with the rest of the working place.
+  const [filters, setFilters] = useState<Record<string, string>>(() => readWorkPlace().filters);
+  const largeText = useLargeText();
   const toast = useToast();
   const navigate = useNavigate();
   const [prefs, setPrefs] = useDevicePrefs();
@@ -86,21 +85,22 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
     if (!search) return groupSupplierProducts(activeId, products);
     const matches = products.filter(p =>
       [p.name, p.flavor, p.category, p.size, getSupplierById(p.supplierId)?.name ?? ''].some(f => (f ?? '').toLowerCase().includes(search)) ||
-      (p.upc ?? '').includes(query.trim()),
+      (p.upc ?? '').includes(query.trim()) ||
+      // A scanned barcode may carry extra leading zeros (EAN-13 form of a UPC-A).
+      (/^\d{6,}$/.test(query.trim()) && !!p.upc && normalizeCode(p.upc) === normalizeCode(query)),
     );
     return sortedSuppliers
       .map(s => ({ key: `search:${s.id}`, title: s.name, titleKey: null, products: matches.filter(p => p.supplierId === s.id).sort(compareProducts) }))
       .filter(g => g.products.length > 0);
   }, [search, query, activeId, products, sortedSuppliers, getSupplierById]);
 
-  const groupKey = (group: ProductGroup) => (search ? group.key : `${activeId}:${group.key}`);
-  const isOpen = (group: ProductGroup) => toggled[groupKey(group)] ?? (search ? true : !startsCollapsed(group, groups.length));
-  const toggle = (group: ProductGroup) => onToggled(prev => ({ ...prev, [groupKey(group)]: !isOpen(group) }));
-  const collapseAll = () => onToggled(prev => ({ ...prev, ...Object.fromEntries(groups.map(g => [groupKey(g), false])) }));
-  const jumpTo = (group: ProductGroup) => {
-    onToggled(prev => ({ ...prev, [groupKey(group)]: true }));
-    setJumpOpen(false);
-    setTimeout(() => document.getElementById(`section-${group.key}`)?.scrollIntoView({ block: 'start' }), 60);
+  const groupLabel = (group: ProductGroup) => group.title ?? t(SECTION_KEYS[group.titleKey ?? 'other']);
+  const activeFilter = !search && groups.some(g => g.key === filters[activeId]) ? filters[activeId] : 'all';
+  const shownGroups = search || activeFilter === 'all' ? groups : groups.filter(g => g.key === activeFilter);
+  const chooseFilter = (key: string) => {
+    setFilters(prev => ({ ...prev, [activeId]: key }));
+    saveWorkPlace(place => ({ ...place, filters: { ...place.filters, [activeId]: key } }));
+    window.scrollTo(0, 0);
   };
 
   const grouping = resolveGroupingMode(activeId);
@@ -120,21 +120,19 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   const remove = (product: Product) => updateOrderItemQuantity(product.id, quantityOf(product) - 1, unitFor(product));
   const uncheck = (product: Product) => removeFromOrder(product.id, 'item');
 
-  // Save & Next walks the counted products of the open groups, in screen order.
+  // Save & Next walks the counted products shown on screen (the chosen pill), in screen order.
   const orderedIds = useMemo(
-    () =>
-      countingOrder(
-        groups,
-        new Set(groups.filter(g => !isOpen(g)).map(g => g.key)),
-        p => getWorkflow(p.supplierId).countStock,
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [groups, toggled, getWorkflow],
+    () => countingOrder(shownGroups, new Set<string>(), p => getWorkflow(p.supplierId).countStock),
+    [shownGroups, getWorkflow],
   );
 
   const inOrderCount = (list: Product[]) =>
     list.filter(p => currentOrder.items.some(item => item.productId === p.id && lineUnit(item) === unitFor(p))).length;
   const resultCount = groups.reduce((total, g) => total + g.products.length, 0);
+  const pills: PillOption[] = [
+    { key: 'all', label: t('allShort'), count: resultCount, inOrder: inOrderCount(groups.flatMap(g => g.products)) },
+    ...groups.map(g => ({ key: g.key, label: groupLabel(g), count: g.products.length, inOrder: inOrderCount(g.products) })),
+  ];
 
   // This supplier's part of the order, for the tray.
   const trayGroup = useMemo(
@@ -223,15 +221,13 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   return (
     <div className="space-y-3" data-testid="counter-home">
       {!search && (
-        <nav aria-label={t('suppliersLabel')} className="sticky top-below-header z-30 -mx-3 space-y-2 bg-slate-100 px-3 pb-2 pt-2 dark:bg-[#0b1120]">
+        <nav aria-label={t('suppliersLabel')} className={`${largeText ? '' : 'sticky top-below-header z-30'} -mx-3 space-y-2 bg-slate-100 px-3 pb-2 pt-2 dark:bg-[#0b1120]`}>
           <SupplierSelector
             suppliers={suppliers}
             activeId={activeId}
             quickIds={quickIds}
-            favorites={prefs.favorites}
             badges={badges}
             onSelect={choose}
-            onToggleFavorite={id => setPrefs(p => withFavoriteToggled(p, id))}
           />
           <div className="flex flex-wrap items-center gap-2">
             {activeWorkflow.countStock ? (
@@ -248,28 +244,23 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
             ) : (
               <p className="min-w-0 flex-1 basis-[13rem] px-1 text-sm text-slate-600 dark:text-slate-300" data-testid="list-hint">{isList ? t('listHint') : ''}</p>
             )}
-            {groups.length > 2 && (
-              <button
-                type="button"
-                onClick={() => setJumpOpen(true)}
-                aria-label={t('jumpToSection')}
-                data-testid="jump-button"
-                className="ms-auto inline-flex h-11 flex-shrink-0 items-center gap-1 rounded-xl bg-white px-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-white/10"
-              >
-                <ChevronUpDownIcon className="h-5 w-5" />
-                <span className="max-[379px]:sr-only">{t('sectionsShort')}</span>
-              </button>
-            )}
           </div>
+          {groups.length > 1 && <FilterPills options={pills} value={activeFilter} onChange={chooseFilter} />}
         </nav>
       )}
 
       {search && <p className="px-1 text-sm text-slate-500 dark:text-slate-400" role="status">{t('searchResultsCount', { count: resultCount })}</p>}
 
       {!search && <BackupReminder />}
+      {!search && mode === 'count' && activeWorkflow.countStock && (
+        <button type="button" className={`${ui.secondary} w-full`} onClick={() => navigate('/counter/shelf')} data-testid="open-shelf-check">
+          <CameraIcon className="h-5 w-5" /> {t('shelfCheck')}
+        </button>
+      )}
       {!search && (
         <AttentionCard
           items={attention}
+          mode={mode}
           onCount={(product, ids) => {
             setSelected(null);
             setCountOrder(ids);
@@ -295,35 +286,54 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
           />
         )
       ) : (
-        groups.map(group => (
-          <CounterGroup
-            key={groupKey(group)}
-            id={search ? undefined : `section-${group.key}`}
-            className={SECTION_SCROLL}
-            title={group.title ?? t(SECTION_KEYS[group.titleKey ?? 'other'])}
-            count={group.products.length}
-            inOrder={inOrderCount(group.products)}
-            open={isOpen(group)}
-            onToggle={() => toggle(group)}
-            caps={group.title === null}
-          >
-            {group.products.map(product => (
-              <CounterRow
-                key={product.id}
-                product={product}
-                mode={rowMode(product)}
-                quantity={quantityOf(product)}
-                olderCaseQuantity={olderCasesOf(product)}
-                onOpen={setSelected}
-                onAdd={add}
-                onRemove={remove}
-                onCount={startCount}
-                onUncheck={uncheck}
-                groupedBy={groupedBy}
-              />
-            ))}
-          </CounterGroup>
-        ))
+        shownGroups.map(group => {
+          const asList = getWorkflow(group.products[0]?.supplierId ?? activeId).orderStyle === 'items' || prefs.density === 'compact';
+          const heading = search || (activeFilter === 'all' && groups.length > 1);
+          return (
+            <section key={group.key} data-testid="product-section" aria-label={groupLabel(group)}>
+              {heading && (
+                <h2 dir="auto" className={`mb-1.5 mt-1 px-1 text-sm font-bold text-slate-600 dark:text-slate-300 ${group.title === null ? 'uppercase tracking-wider' : ''}`}>
+                  {groupLabel(group)} <span className="font-normal text-slate-400">· {group.products.length}</span>
+                </h2>
+              )}
+              {asList ? (
+                <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 dark:divide-white/5 dark:bg-slate-900/80 dark:ring-white/10">
+                  {group.products.map(product => (
+                    <CounterRow
+                      key={product.id}
+                      product={product}
+                      mode={rowMode(product)}
+                      quantity={quantityOf(product)}
+                      olderCaseQuantity={olderCasesOf(product)}
+                      onOpen={setSelected}
+                      onAdd={add}
+                      onRemove={remove}
+                      onCount={startCount}
+                      onUncheck={uncheck}
+                      groupedBy={groupedBy}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="product-grid" data-testid="product-grid">
+                  {group.products.map(product => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      mode={rowMode(product) === 'count' ? 'count' : 'order'}
+                      quantity={quantityOf(product)}
+                      onOpen={setSelected}
+                      onAdd={add}
+                      onRemove={remove}
+                      onCount={startCount}
+                      groupedBy={groupedBy}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })
       )}
 
       {/* Room for the tray, so the last row is never hidden behind it. */}
@@ -357,33 +367,6 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
         </div>
       )}
 
-      <Sheet open={jumpOpen} onClose={() => setJumpOpen(false)} title={t('jumpToSection')} testId="jump-sheet">
-        <ul className="divide-y divide-slate-100 dark:divide-white/5">
-          {groups.map(group => (
-            <li key={group.key}>
-              <button type="button" onClick={() => jumpTo(group)} className="flex min-h-12 w-full items-center gap-2 py-2 text-start">
-                <span dir="auto" className="min-w-0 flex-1 break-words font-semibold">{group.title ?? t(SECTION_KEYS[group.titleKey ?? 'other'])}</span>
-                {inOrderCount(group.products) > 0 && (
-                  <span className="rounded-full bg-teal-500/15 px-2 text-xs font-bold text-teal-700 dark:text-teal-300">{t('inOrderShort', { count: inOrderCount(group.products) })}</span>
-                )}
-                <span className="rounded-full bg-slate-100 px-2 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">{group.products.length}</span>
-                <span className={`text-xs ${isOpen(group) ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>{isOpen(group) ? t('sectionOpen') : t('sectionClosed')}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <button
-          type="button"
-          className={`${ui.secondary} mt-3 w-full`}
-          onClick={() => {
-            collapseAll();
-            setJumpOpen(false);
-          }}
-          data-testid="collapse-all"
-        >
-          <ArrowsPointingInIcon className="h-5 w-5" /> {t('collapseAll')}
-        </button>
-      </Sheet>
       <ProductSheet product={selected} onClose={() => setSelected(null)} onCount={startCount} />
       <CountSheet
         productId={countingId}

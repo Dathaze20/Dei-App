@@ -24,17 +24,23 @@ test.describe('rows and navigation', () => {
     await expect(page.getByTestId('counter-drawer')).toBeVisible();
   });
 
-  test('pictures lead the row: about 84px Comfortable and 68px Compact at 412px; names 15px; colour tiles drawn offline', async ({ page }) => {
+  test('pictures lead: big picture cards two per row at 412px, the 68px list in Compact; names 15px; tiles drawn offline', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await seed(page, REAL, '/counter');
-    const thumb = row(page, 'Caution Extreme Fruit Punch').locator('.row-thumb');
-    expect((await thumb.boundingBox())!.width).toBeCloseTo(84, 0);
-    await expect(thumb).toHaveAttribute('data-testid', 'product-thumb-placeholder');
-    // The catalog tile keeps its colour and caption, with no network request.
+    const card = row(page, 'Caution Extreme Fruit Punch');
+    const thumb = card.getByTestId('product-thumb-placeholder');
+    const box = (await thumb.boundingBox())!;
+    expect(box.width).toBeGreaterThan(160);
+    expect(box.height).toBeGreaterThan(100);
     expect(await thumb.evaluate(e => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
-    expect(await row(page, 'Caution Extreme Fruit Punch').getByTestId('row-name').evaluate(e => getComputedStyle(e).fontSize)).toBe('15px');
-    await page.evaluate(() => (document.documentElement.dataset.density = 'compact'));
-    expect((await thumb.boundingBox())!.width).toBeCloseTo(68, 0);
+    expect(await card.getByTestId('row-name').evaluate(e => getComputedStyle(e).fontSize)).toBe('15px');
+    const firstTwo = await page.getByTestId('counter-row').evaluateAll(els => els.slice(0, 2).map(e => e.getBoundingClientRect().top));
+    expect(Math.abs(firstTwo[0] - firstTwo[1])).toBeLessThan(2); // side by side
+    await page.evaluate(() => {
+      localStorage.setItem('deliordernyc_sys_prefs', JSON.stringify({ favorites: [], recent: [], lastSupplier: 'sup6', mode: 'order', density: 'compact' }));
+    });
+    await page.reload();
+    expect((await row(page, 'Caution Extreme Fruit Punch').locator('.row-thumb').boundingBox())!.width).toBeCloseTo(68, 0);
   });
 
   for (const width of [320, 360, 384, 412] as const) {
@@ -122,6 +128,7 @@ test.describe('bulk import', () => {
       'Fritos,Frito-Lay,Original,1 oz,64,,',
       'Mystery,Nobody,,,1,1,',
     ].join('\n');
+    await page.getByTestId('catalog-more').click();
     await page.getByTestId('open-import').click();
     await page.getByTestId('import-input').setInputFiles({ name: 'products.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
     const preview = page.getByTestId('import-preview');
@@ -218,10 +225,11 @@ test.describe('needs attention', () => {
     await seed(page, REAL, '/counter');
     await page.getByTestId('mode-count').click();
     const card = page.getByTestId('attention-card');
-    await expect(card).toContainText('never counted');
+    await expect(card).toContainText('84 not counted');
     await card.click();
     const first = page.getByTestId('attention-item').first();
     await expect(first).toContainText('Never counted');
+    await expect(page.getByTestId('attention-group').first()).toContainText('Not counted yet (stock unknown, not low)');
     const firstName = (await first.locator('p').first().textContent())!;
     await page.getByTestId('attention-count-all').click();
     const sheet = page.getByTestId('count-sheet');

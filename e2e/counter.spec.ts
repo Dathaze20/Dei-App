@@ -81,44 +81,42 @@ test.describe('supplier selector: no sideways scrolling, favourites, recent, rem
     await expect(page.getByTestId('current-supplier')).toContainText('Arizona');
   });
 
-  test('pinned suppliers come first in the bar and the list, and stay pinned', async ({ page }) => {
-    await seed(page, REAL);
+  test('no pins or stars (v0.1.5): the bar shows recent suppliers; an old saved pin does nothing and is kept', async ({ page }) => {
+    await seed(page, { ...REAL, deliordernyc_sys_prefs: JSON.stringify({ favorites: ['sup1'], recent: ['sup4'], lastSupplier: 'sup6', mode: 'order', density: 'comfortable' }) });
+    await expect(page.getByTestId('quick-supplier').first()).toContainText('Frito-Lay');
+    await expect(page.getByTestId('quick-supplier').filter({ hasText: "Boar's Head" })).toHaveCount(0);
     await page.getByTestId('all-suppliers').click();
-    await page.getByRole('button', { name: "Pin Boar's Head" }).click();
-    await expect(page.getByRole('button', { name: "Unpin Boar's Head" }).first()).toHaveAttribute('aria-pressed', 'true');
-    await page.keyboard.press('Escape');
-    const quick = page.getByTestId('quick-supplier');
-    await expect(quick.first()).toContainText("Boar's Head");
-    await page.reload();
-    await expect(page.getByTestId('quick-supplier').first()).toContainText("Boar's Head");
-    await page.getByTestId('all-suppliers').click();
-    await expect(page.getByTestId('supplier-grid').getByRole('heading', { name: 'Pinned' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(Pin|Unpin) / })).toHaveCount(0);
+    await expect(page.getByTestId('supplier-grid').getByRole('heading', { name: 'Pinned' })).toHaveCount(0);
+    expect(JSON.parse((await page.evaluate(() => localStorage.getItem('deliordernyc_sys_prefs')))!).favorites).toEqual(['sup1']);
   });
 
-  test('leaving Counter and coming back keeps the supplier, the open sections and the place in the list', async ({ page }) => {
+  test('leaving Counter and coming back keeps the supplier, the chosen pill and the place in the list', async ({ page }) => {
     await seed(page, REAL);
-    await page.getByTestId('jump-button').click();
-    await page.getByTestId('jump-sheet').getByRole('button', { name: /^23 oz\. Big Can/ }).click();
-    const bigCan = page.getByTestId('counter-group').filter({ has: page.getByRole('heading', { name: '23 oz. Big Can', exact: true }) });
-    await expect(bigCan.getByRole('button', { expanded: true })).toBeVisible();
-    await row(page, 'Mucho Mango').getByRole('button', { name: /^Add one/ }).click();
+    await page.getByTestId('filter-pill').filter({ hasText: '20 oz. Tall Boy' }).click();
+    await expect(page.getByTestId('filter-pill').filter({ hasText: '20 oz. Tall Boy' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('counter-row')).toHaveCount(17);
+    await row(page, 'Arnold Palmer').getByRole('button', { name: /^Add one/ }).click();
+    await page.evaluate(() => window.scrollTo(0, 600));
+    await page.waitForTimeout(800);
     const y = await page.evaluate(() => window.scrollY);
     expect(y).toBeGreaterThan(300);
     await page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ }).click();
     await expect(page.getByTestId('counter-orders')).toBeVisible();
     await page.getByTestId('counter-nav').getByRole('link', { name: /Counter/ }).click();
-    await expect(bigCan.getByRole('button', { expanded: true })).toBeVisible();
+    await expect(page.getByTestId('filter-pill').filter({ hasText: '20 oz. Tall Boy' })).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(y - 60);
   });
 
-  test('Close all sections, then reopen one from the section list', async ({ page }) => {
+  test('pills come from the catalog: All shows every size with a heading; a pill shows only its products', async ({ page }) => {
     await seed(page, REAL);
-    await page.getByTestId('jump-button').click();
-    await page.getByTestId('collapse-all').click();
-    await expect(page.getByTestId('counter-row')).toHaveCount(0);
-    await page.getByTestId('jump-button').click();
-    await page.getByTestId('jump-sheet').getByRole('button', { name: /^12 oz\. Can/ }).click();
+    const pills = page.getByTestId('filter-pill');
+    await expect(pills.first()).toHaveText(/^All/);
+    await expect(pills).toHaveCount(1 + 8);
+    await expect(page.getByTestId('product-section')).toHaveCount(8);
+    await pills.filter({ hasText: '12 oz. Can' }).click();
     await expect(page.getByTestId('counter-row')).toHaveCount(10);
+    await expect(page.getByTestId('product-section').locator('h2')).toHaveCount(0);
   });
 
   test('two products that differ only at the end of the flavor are both readable (two lines, no cut-off)', async ({ page }) => {
@@ -156,8 +154,8 @@ test.describe('one-tap ordering on the one saved order', () => {
   test("Boar's Head: MEATS then CHEESES, item lines, no stock or prices", async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
     await pickSupplier(page, "Boar's Head");
-    const groups = page.getByTestId('counter-group').locator('h3');
-    await expect(groups).toHaveText(['Meats', 'Cheeses']);
+    await expect(page.getByTestId('filter-pill')).toHaveText([/^All/, /^Meats/, /^Cheeses/]);
+    await expect(page.getByTestId('product-section').locator('h2')).toHaveText([/^Meats/, /^Cheeses/]);
     await expect(page.getByTestId('stock-label')).toHaveCount(0);
     await page.getByRole('checkbox', { name: /Provolone Cheese/ }).click();
     expect((await order(page)).find(i => i.productId === 'bh_provolone')).toEqual({ productId: 'bh_provolone', quantity: 1, unit: 'item' });
@@ -175,12 +173,15 @@ test.describe('one-tap ordering on the one saved order', () => {
     await expect(page.getByTestId('count-sheet')).toBeVisible();
   });
 
-  test('large groups start closed and open with one tap', async ({ page }) => {
+  test('one tap on a pill shows that size; + adds a case without opening anything', async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
-    const tallBoy = page.getByTestId('counter-group').filter({ hasText: '20 oz. Tall Boy' }).getByRole('button', { expanded: false });
-    await expect(tallBoy).toBeVisible();
-    await tallBoy.click();
-    await expect(page.getByTestId('counter-group').filter({ hasText: '20 oz. Tall Boy' }).getByTestId('counter-row')).toHaveCount(17);
+    await page.getByTestId('filter-pill').filter({ hasText: '20 oz. Tall Boy' }).click();
+    await expect(page.getByTestId('counter-row')).toHaveCount(17);
+    const first = page.getByTestId('counter-row').first();
+    const id = (await first.getAttribute('data-product'))!;
+    await first.getByRole('button', { name: /^Add one/ }).click();
+    expect((await order(page)).find(i => i.productId === id)).toEqual({ productId: id, quantity: 1 });
+    await expect(page.getByTestId('product-sheet')).toHaveCount(0);
   });
 
   test('search finds products from every supplier; closing it returns to the supplier', async ({ page }) => {
@@ -188,7 +189,7 @@ test.describe('one-tap ordering on the one saved order', () => {
     await page.getByRole('button', { name: 'Search products' }).click();
     await page.getByRole('searchbox', { name: 'Search products' }).fill('provolone');
     await expect(page.getByTestId('counter-row')).toHaveCount(1);
-    await expect(page.getByTestId('counter-group').locator('h3')).toHaveText(["Boar's Head"]);
+    await expect(page.getByTestId('product-section').locator('h2')).toHaveText([/^Boar's Head/]);
     await page.getByRole('button', { name: 'Close search' }).click();
     await expect(page.getByTestId('supplier-bar')).toBeVisible();
     await expect(page.getByRole('searchbox')).toHaveCount(0);
@@ -277,7 +278,7 @@ test.describe('Counter phone layout', () => {
     const { page } = phone;
     await expectTargets(page, '[data-testid="counter-screen"] header button');
     await expectTargets(page, '[data-testid="supplier-bar"] button');
-    await expectTargets(page, '[data-testid="counter-group"] > button');
+    await expectTargets(page, '[data-testid="filter-pill"]');
     await expectTargets(page, '[data-testid="counter-row"] button');
     await expectTargets(page, '[data-testid="counter-nav"] a, [data-testid="counter-nav"] button');
     await page.getByTestId('counter-menu-button').click();

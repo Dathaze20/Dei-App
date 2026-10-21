@@ -9,6 +9,7 @@ import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Product } from '../../types';
 import { lineQuantity } from '../../utils/supplierDraft';
+import { productSignals } from '../../utils/productSignals';
 import ProductThumb from '../ProductThumb';
 import StockLabel from '../StockLabel';
 import Sheet from '../ui/Sheet';
@@ -23,7 +24,7 @@ interface ProductSheetProps {
 }
 
 const ProductSheet: React.FC<ProductSheetProps> = ({ product, onClose, onCount }) => {
-  const { currentOrder, getSupplierById, getWorkflow, addToOrder, updateOrderItemQuantity } = useInventory();
+  const { currentOrder, getSupplierById, getWorkflow, addToOrder, updateOrderItemQuantity, orderHistory, getStock } = useInventory();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [photoWalk, setPhotoWalk] = useState(false);
@@ -108,6 +109,21 @@ const ProductSheet: React.FC<ProductSheetProps> = ({ product, onClose, onCount }
         )}
 
         {olderCases > 0 && <p className={ui.warn}>{t('olderCasesNote', { quantity: olderCases })}</p>}
+
+        {/* What the app can honestly say about how this product moves (utils/productSignals.ts). */}
+        <section data-testid="product-signals">
+          <h3 className={`${ui.eyebrow} mb-1`}>{t('signalsTitle')}</h3>
+          <ul className="space-y-0.5 text-sm text-slate-600 dark:text-slate-300">
+            {productSignals(product, orderHistory, getStock(product)).map(signal => (
+              <li key={signal.kind}>
+                {signal.kind === 'frequently-reordered' ? t('signalReordered', { count: signal.orders })
+                  : signal.kind === 'often-low' ? t('signalOftenLow')
+                  : signal.kind === 'movement-estimate' ? t('signalMovement', { units: signal.units, days: signal.days })
+                  : t('signalNoSales')}
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <button
           type="button"

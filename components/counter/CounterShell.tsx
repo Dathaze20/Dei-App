@@ -20,7 +20,6 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { withSupplierChosen } from '../../utils/devicePrefs';
 import { StartupNotice } from '../../utils/safetyBootstrap';
 import { DeliNative, isAndroidApp } from '../../utils/nativeApp';
-import { readWorkPlace, saveWorkPlace } from '../../utils/workPlace';
 import { ToastProvider, useToast } from '../ui/Toast';
 import CounterDrawer from './CounterDrawer';
 import CounterCatalog from './CounterCatalog';
@@ -29,6 +28,7 @@ import CounterOrders from './CounterOrders';
 import CounterSettings from './CounterSettings';
 import CounterNav from './CounterNav';
 import OrderHistory from './OrderHistory';
+import ShelfChecks from './ShelfChecks';
 import CounterTopBar from './CounterTopBar';
 
 /** #/product/<id> from a shelf-tag QR code: open that product on Counter. */
@@ -47,15 +47,6 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
-  // Open and closed sections, kept while the app is open so leaving Counter and coming back
-  // finds the same sections open (the scroll position is kept by CounterHome).
-  const [toggled, setToggledState] = useState<Record<string, boolean>>(() => readWorkPlace().sections);
-  const setToggled: React.Dispatch<React.SetStateAction<Record<string, boolean>>> = change =>
-    setToggledState(prev => {
-      const next = typeof change === 'function' ? change(prev) : change;
-      saveWorkPlace(place => ({ ...place, sections: next }));
-      return next;
-    });
   // A product to open, from a shelf-tag link.
   const [openProductId, setOpenProductId] = useState<string | null>(null);
   const onHome = location.pathname === '/counter' || location.pathname === '/counter/';
@@ -132,7 +123,8 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
       // Counter must leave the app, even before the screen has finished drawing.
       const path = window.location.hash.replace(/^#/, '').replace(/\/$/, '');
       if (path === '/counter') return false;
-      navigate(path === '/counter/orders/history' ? '/counter/orders' : '/counter', { replace: true });
+      const parent = path === '/counter/orders/history' ? '/counter/orders' : path.startsWith('/counter/shelf/') ? '/counter/shelf' : '/counter';
+      navigate(parent, { replace: true });
       return true;
     },
     'screen',
@@ -160,8 +152,6 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
                 onSelectSupplier={selectSupplier}
                 mode={prefs.mode}
                 onMode={mode => setPrefs(p => ({ ...p, mode }))}
-                toggled={toggled}
-                onToggled={setToggled}
                 openProductId={openProductId}
                 onProductOpened={() => setOpenProductId(null)}
               />
@@ -169,6 +159,8 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
           />
           <Route path="/counter/orders" element={<CounterOrders onSelectSupplier={selectSupplier} />} />
           <Route path="/counter/orders/history" element={<OrderHistory onSelectSupplier={selectSupplier} />} />
+          <Route path="/counter/shelf" element={<ShelfChecks />} />
+          <Route path="/counter/shelf/:checkId" element={<ShelfChecks />} />
           <Route path="/counter/catalog" element={<CounterCatalog />} />
           <Route path="/counter/settings" element={<CounterSettings />} />
           {/* Addresses from before C2.3 (Classic View) and shelf-tag QR codes. */}
