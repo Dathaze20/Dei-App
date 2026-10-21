@@ -71,14 +71,14 @@ const CounterCatalog: React.FC = () => {
 
   return (
     <div className="space-y-3" data-testid="counter-catalog">
-      <section className={`${ui.card} p-4`}>
+      <section className={`${ui.card} p-3`}>
         <div className="flex flex-wrap items-center gap-2">
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-extrabold">{t('navCatalog')}</h1>
+            <h1 className="text-lg font-extrabold leading-tight">{t('navCatalog')}</h1>
             <p className={ui.muted}>{t('catalogSummary', { products: products.length, suppliers: suppliers.length })}</p>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-2 grid grid-cols-2 gap-2">
           <button type="button" className={ui.primary} onClick={() => setEditing({ supplierId: '' })}>
             <PlusIcon className="h-5 w-5" /> {t('addProduct')}
           </button>
@@ -86,7 +86,7 @@ const CounterCatalog: React.FC = () => {
             <PlusIcon className="h-5 w-5" /> {t('addSupplier')}
           </button>
         </div>
-        <div className="relative mt-3">
+        <div className="relative mt-2">
           <MagnifyingGlassIcon className="pointer-events-none absolute start-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
           <input
             type="search"

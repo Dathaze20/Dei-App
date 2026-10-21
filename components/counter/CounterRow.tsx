@@ -52,7 +52,7 @@ const CounterRow: React.FC<CounterRowProps> = ({ product, mode, quantity, olderC
     <div
       data-testid="counter-row"
       data-product={product.id}
-      className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 py-2 ps-2 pe-1.5 border-s-2 transition-colors ${
+      className={`row-pad flex flex-wrap items-center gap-x-2.5 gap-y-1 py-2 ps-2 pe-1.5 border-s-2 transition-colors ${
         selected ? 'border-teal-500 bg-teal-500/[0.06] dark:bg-teal-400/[0.07]' : 'border-transparent'
       }`}
     >
@@ -73,7 +73,7 @@ const CounterRow: React.FC<CounterRowProps> = ({ product, mode, quantity, olderC
           </span>
         </motion.button>
       )}
-      <ProductThumb product={product} className="h-11 w-11 rounded-lg" onClick={() => onOpen(product)} />
+      <ProductThumb product={product} className="row-thumb h-11 w-11 rounded-lg" onClick={() => onOpen(product)} />
       <div
         role="button"
         tabIndex={0}
@@ -82,7 +82,9 @@ const CounterRow: React.FC<CounterRowProps> = ({ product, mode, quantity, olderC
         aria-label={t('productDetailsFor', { name: label })}
         className="min-w-0 flex-1 basis-[8.5rem] cursor-pointer text-start rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
       >
-        <p dir="auto" className="truncate rtl:text-right text-[0.9375rem] font-semibold leading-snug text-slate-900 dark:text-slate-50">{primary}</p>
+        {/* Up to two lines: the flavor is often what tells two products apart ("Caution Extreme
+            Fruit Punch" / "Caution Extreme Performance"), so it is never cut to one line. */}
+        <p dir="auto" className="line-clamp-2 break-words rtl:text-right text-[0.9375rem] font-semibold leading-snug text-slate-900 dark:text-slate-50" data-testid="row-name">{primary}</p>
         {secondary && <p dir="auto" className="truncate rtl:text-right text-xs leading-snug text-slate-500 dark:text-slate-400">{secondary}</p>}
         <StockLabel product={product} className="mt-0.5 leading-snug" />
         {olderCaseQuantity > 0 && (

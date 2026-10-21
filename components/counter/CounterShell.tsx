@@ -1,39 +1,72 @@
 // components/counter/CounterShell.tsx
 //
-// The Counter screen (opt-in; Classic View stays available). Its own top bar, bottom navigation
-// and menu around four places:
-//   #/counter           Counter: suppliers and products, one-tap ordering
+// DeliOrderNYC's one interface. Top bar, bottom navigation and menu around four places:
+//   #/counter           Counter: suppliers and products, ordering and counting
 //   #/counter/orders    Orders: each supplier's part of the order (share, QR, copy, clear)
 //   #/counter/catalog   Catalog: products and suppliers (add, edit, shelf tags, delete)
 //   #/counter/settings  Settings: store profile, appearance, backup, restore, updates, about
+// Older addresses keep working: #/product/<id> (shelf-tag QR codes) opens that product on Counter,
+// #/order opens Orders, #/manage opens Settings, and anything else opens Counter.
 // Everything uses the one saved order, the verified counts and the existing data functions;
 // nothing is stored twice. Android Back closes what is open, then returns here to Counter.
 import React, { useEffect, useState } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
 import StorageStatusBanner from '../StorageStatusBanner';
+import useInventory from '../../hooks/useInventory';
 import { useBackHandler } from '../../hooks/useBackHandler';
+import { useDevicePrefs } from '../../hooks/useDevicePrefs';
+import { useTranslation } from '../../hooks/useTranslation';
+import { withSupplierChosen } from '../../utils/devicePrefs';
 import { StartupNotice } from '../../utils/safetyBootstrap';
+import { ToastProvider, useToast } from '../ui/Toast';
 import CounterDrawer from './CounterDrawer';
 import CounterCatalog from './CounterCatalog';
-import CounterHome, { CounterMode } from './CounterHome';
+import CounterHome from './CounterHome';
 import CounterOrders from './CounterOrders';
 import CounterSettings from './CounterSettings';
 import CounterNav from './CounterNav';
 import CounterTopBar from './CounterTopBar';
 
-const CounterShell: React.FC<{ startupNotice?: StartupNotice | null }> = ({ startupNotice = null }) => {
+/** #/product/<id> from a shelf-tag QR code: open that product on Counter. */
+const ProductLink: React.FC = () => {
+  const { productId = '' } = useParams();
+  return <Navigate to="/counter" replace state={{ openProduct: productId }} />;
+};
+
+const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotice }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { getProductById } = useInventory();
+  const { t } = useTranslation();
+  const toast = useToast();
+  const [prefs, setPrefs] = useDevicePrefs();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
-  // Remembered while the app is open, so switching tabs comes back to the same supplier.
-  const [supplierId, setSupplierId] = useState('');
-  const [mode, setMode] = useState<CounterMode>('order');
+  // Open and closed sections, kept while the app is open so leaving Counter and coming back
+  // finds the same sections open (the scroll position is kept by CounterHome).
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  // A product to open, from a shelf-tag link.
+  const [openProductId, setOpenProductId] = useState<string | null>(null);
   const onHome = location.pathname === '/counter' || location.pathname === '/counter/';
 
-  // Menu entries open Settings at the right panel.
+  const selectSupplier = (id: string) => setPrefs(p => withSupplierChosen(p, id));
+
+  // Shelf-tag links: show the product's supplier and open the product.
+  useEffect(() => {
+    const id = (location.state as { openProduct?: string } | null)?.openProduct;
+    if (!id) return;
+    const product = getProductById(id);
+    if (product) {
+      selectSupplier(product.supplierId);
+      setOpenProductId(product.id);
+    } else toast(t('productLinkMissing'));
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
+  // Menu entries open Settings at the right section.
   useEffect(() => {
     const section = (location.state as { section?: string } | null)?.section;
     if (!section) return;
@@ -45,11 +78,14 @@ const CounterShell: React.FC<{ startupNotice?: StartupNotice | null }> = ({ star
     if (!onHome) setSearchOpen(false);
   }, [onHome]);
 
-  // The Counter look for shared panels and dialogs (index.css), only while this screen is open.
+  // The Counter look for shared panels and dialogs (index.css), and the chosen density.
   useEffect(() => {
     document.documentElement.classList.add('counter-ui');
     return () => document.documentElement.classList.remove('counter-ui');
   }, []);
+  useEffect(() => {
+    document.documentElement.dataset.density = prefs.density;
+  }, [prefs.density]);
 
   // Android Back on a screen (after any open sheet or menu): close search, else go to Counter.
   // On Counter itself it is not handled, so Android leaves the app as usual.
@@ -65,34 +101,56 @@ const CounterShell: React.FC<{ startupNotice?: StartupNotice | null }> = ({ star
   );
 
   return (
-    <MotionConfig reducedMotion="user">
-      <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-[#0b1120] dark:text-slate-100" data-testid="counter-screen">
-        <CounterTopBar
-          onMenu={() => setMenuOpen(true)}
-          canSearch={onHome}
-          searchOpen={searchOpen}
-          query={query}
-          onSearchOpen={setSearchOpen}
-          onQuery={setQuery}
-        />
-        <main className="mx-auto max-w-3xl px-3 pt-2 pb-bottom-nav">
-          <StorageStatusBanner notice={startupNotice} />
-          <Routes>
-            <Route
-              path="/counter"
-              element={<CounterHome query={searchOpen ? query : ''} supplierId={supplierId} onSelectSupplier={setSupplierId} mode={mode} onMode={setMode} />}
-            />
-            <Route path="/counter/orders" element={<CounterOrders onSelectSupplier={setSupplierId} />} />
-            <Route path="/counter/catalog" element={<CounterCatalog />} />
-            <Route path="/counter/settings" element={<CounterSettings />} />
-            <Route path="*" element={<Navigate to="/counter" replace />} />
-          </Routes>
-        </main>
-        <CounterNav onMenu={() => setMenuOpen(true)} />
-        <CounterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
-      </div>
-    </MotionConfig>
+    <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-[#0b1120] dark:text-slate-100" data-testid="counter-screen">
+      <CounterTopBar
+        onMenu={() => setMenuOpen(true)}
+        canSearch={onHome}
+        searchOpen={searchOpen}
+        query={query}
+        onSearchOpen={setSearchOpen}
+        onQuery={setQuery}
+      />
+      <main className="mx-auto max-w-3xl px-3 pt-2 pb-bottom-nav">
+        <StorageStatusBanner notice={startupNotice} />
+        <Routes>
+          <Route
+            path="/counter"
+            element={
+              <CounterHome
+                query={searchOpen ? query : ''}
+                supplierId={prefs.lastSupplier}
+                onSelectSupplier={selectSupplier}
+                mode={prefs.mode}
+                onMode={mode => setPrefs(p => ({ ...p, mode }))}
+                toggled={toggled}
+                onToggled={setToggled}
+                openProductId={openProductId}
+                onProductOpened={() => setOpenProductId(null)}
+              />
+            }
+          />
+          <Route path="/counter/orders" element={<CounterOrders onSelectSupplier={selectSupplier} />} />
+          <Route path="/counter/catalog" element={<CounterCatalog />} />
+          <Route path="/counter/settings" element={<CounterSettings />} />
+          {/* Addresses from before C2.3 (Classic View) and shelf-tag QR codes. */}
+          <Route path="/product/:productId" element={<ProductLink />} />
+          <Route path="/order" element={<Navigate to="/counter/orders" replace />} />
+          <Route path="/manage" element={<Navigate to="/counter/settings" replace />} />
+          <Route path="*" element={<Navigate to="/counter" replace />} />
+        </Routes>
+      </main>
+      <CounterNav onMenu={() => setMenuOpen(true)} />
+      <CounterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+    </div>
   );
 };
+
+const CounterShell: React.FC<{ startupNotice?: StartupNotice | null }> = ({ startupNotice = null }) => (
+  <MotionConfig reducedMotion="user">
+    <ToastProvider>
+      <Shell startupNotice={startupNotice} />
+    </ToastProvider>
+  </MotionConfig>
+);
 
 export default CounterShell;

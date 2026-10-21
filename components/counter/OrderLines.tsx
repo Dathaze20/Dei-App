@@ -10,6 +10,7 @@ import { SummaryGroup } from '../../utils/orderSummary';
 import ProductThumb from '../ProductThumb';
 import ConfirmSheet from '../ui/ConfirmSheet';
 import { ui } from '../ui/styles';
+import { useToast } from '../ui/Toast';
 import { MinusIcon, PlusIcon, TrashIcon } from '../shared/icons';
 
 export const money = (value: number) => `$${value.toFixed(2)}`;
@@ -21,8 +22,15 @@ export const groupTotals = (group: SummaryGroup) => ({
 });
 
 const OrderLines: React.FC<{ group: SummaryGroup }> = ({ group }) => {
-  const { updateOrderItemQuantity, removeFromOrder, convertOrderLineToItems } = useInventory();
+  const { addToOrder, updateOrderItemQuantity, removeFromOrder, convertOrderLineToItems } = useInventory();
   const { t } = useTranslation();
+  const toast = useToast();
+  // Removing a line can be undone for a few seconds. An older case line cannot be re-created as
+  // it was (new lines use today's unit), so it is removed without Undo, as before.
+  const removeLine = (productId: string, unit: 'case' | 'item', quantity: number, name: string, older: boolean) => {
+    removeFromOrder(productId, unit);
+    toast(t('removedFromOrder', { name }), older ? undefined : { label: t('undo'), run: () => addToOrder(productId, quantity) });
+  };
   const [converting, setConverting] = useState<{ productId: string; quantity: number } | null>(null);
 
   return (
@@ -67,7 +75,7 @@ const OrderLines: React.FC<{ group: SummaryGroup }> = ({ group }) => {
                   {t('convertToItems')}
                 </button>
               )}
-              <button type="button" className={`${ui.ghost} ms-auto !text-red-700 dark:!text-red-300`} onClick={() => removeFromOrder(item.productId, unit)} aria-label={`${t('removeFromOrder')}: ${name}`}>
+              <button type="button" className={`${ui.ghost} ms-auto !text-red-700 dark:!text-red-300`} onClick={() => removeLine(item.productId, unit, item.quantity, name, olderCaseLine)} aria-label={`${t('removeFromOrder')}: ${name}`}>
                 <TrashIcon className="h-5 w-5" /> {t('remove')}
               </button>
             </div>

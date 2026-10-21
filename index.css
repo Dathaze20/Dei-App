@@ -113,3 +113,18 @@ html.counter-ui.dark .shadow-xl {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* Display density (Settings › Appearance). Compact fits more products on the screen by using
+   less space around each row and a smaller picture; text size and 44px buttons are unchanged. */
+html[data-density='compact'] .row-pad {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+html[data-density='compact'] .row-thumb {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+html[data-density='compact'] [data-testid='counter-group'] > button {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}

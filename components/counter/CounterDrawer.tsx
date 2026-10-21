@@ -1,8 +1,8 @@
 // components/counter/CounterDrawer.tsx
 //
-// The Counter menu: the places in Settings (store profile, appearance, backup, restore and
-// recovery, updates, about), quick language and dark mode, and the way back to Classic View.
-// Slides in from the start side (left, or right in Arabic). Android Back and Escape close it.
+// The menu, in four short groups: Store, Preferences, Data & recovery, App. Each entry opens its
+// Settings section; language and dark mode can also be changed right here. Slides in from the
+// start side (left, or right in Arabic). Android Back and Escape close it.
 import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -11,7 +11,6 @@ import useInventory from '../../hooks/useInventory';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useBackHandler } from '../../hooks/useBackHandler';
-import { saveUiMode } from '../../utils/uiMode';
 import {
   ArrowDownTrayIcon,
   ArrowUturnLeftIcon,
@@ -25,7 +24,7 @@ import {
 } from '../shared/icons';
 
 const row =
-  'flex w-full min-h-12 items-center gap-3 rounded-xl px-3 text-start font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-white/5';
+  'flex w-full min-h-11 items-center gap-3 rounded-xl px-3 py-1.5 text-start text-[0.9375rem] font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-white/5';
 
 const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { deliName } = useInventory();
@@ -42,11 +41,6 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
   const goTo = (section: string) => {
     onClose();
     navigate('/counter/settings', { state: { section } });
-  };
-  const toClassic = () => {
-    saveUiMode('classic');
-    onClose();
-    navigate('/');
   };
   const from = dir === 'rtl' ? '100%' : '-100%';
 
@@ -68,7 +62,7 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
               exit={{ x: from }}
               transition={{ type: 'spring', stiffness: 420, damping: 40 }}
             >
-              <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-white/10">
+              <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2 dark:border-white/10">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-lg font-extrabold">{deliName}</p>
                   {deliName.trim() !== 'DeliOrderNYC' && (
@@ -80,57 +74,53 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
                 </button>
               </div>
 
-              <div className="flex-1 space-y-1 overflow-y-auto p-2">
+              <nav className="flex-1 overflow-y-auto px-2 pb-2" aria-label={t('navMenu')}>
                 {(
                   [
-                    ['settings-store', t('storeProfile'), UserCircleIcon],
-                    ['settings-display', t('appearance'), SwatchIcon],
-                    ['settings-backup', t('menuBackup'), ArrowDownTrayIcon],
-                    ['settings-restore', t('menuRestore'), ArrowUturnLeftIcon],
-                    ['settings-updates', t('menuUpdates'), SparklesIcon],
-                    ['settings-about', t('aboutApp'), InformationCircleIcon],
+                    ['menuGroupStore', [['settings-store', t('storeProfile'), UserCircleIcon]]],
+                    ['menuGroupPreferences', [['settings-display', t('appearance'), SwatchIcon]]],
+                    ['menuGroupData', [['settings-backup', t('menuBackup'), ArrowDownTrayIcon], ['settings-restore', t('menuRestore'), ArrowUturnLeftIcon]]],
+                    ['menuGroupApp', [['settings-updates', t('menuUpdates'), SparklesIcon], ['settings-about', t('aboutApp'), InformationCircleIcon]]],
                   ] as const
-                ).map(([section, label, Icon]) => (
-                  <button key={section} type="button" className={row} onClick={() => goTo(section)} data-section={section}>
-                    <Icon className="h-5 w-5 text-cyan-600 dark:text-cyan-300" /> {label}
-                  </button>
-                ))}
-
-                <div className="px-3 pb-1 pt-4">
-                  <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    <GlobeAltIcon className="h-4 w-4" /> {t('menuLanguage')}
-                  </p>
-                  <div className="flex gap-1.5" role="group" aria-label={t('menuLanguage')}>
-                    {(['en', 'es', 'ar'] as const).map(code => (
-                      <button
-                        key={code}
-                        type="button"
-                        aria-pressed={language === code}
-                        onClick={() => setLanguage(code)}
-                        className={`min-h-11 flex-1 rounded-xl text-sm font-bold ${
-                          language === code ? 'bg-cyan-600 text-white dark:bg-cyan-500 dark:text-slate-950' : 'bg-slate-100 text-slate-700 dark:bg-white/5 dark:text-slate-200'
-                        }`}
-                      >
-                        {code === 'en' ? 'English' : code === 'es' ? 'Español' : 'العربية'}
+                ).map(([group, entries]) => (
+                  <div key={group} className="pt-2">
+                    <p className="px-3 pb-0.5 text-[0.6875rem] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t(group)}</p>
+                    {entries.map(([section, label, Icon]) => (
+                      <button key={section} type="button" className={row} onClick={() => goTo(section)} data-section={section}>
+                        <Icon className="h-5 w-5 flex-shrink-0 text-cyan-600 dark:text-cyan-300" /> <span className="min-w-0 break-words">{label}</span>
                       </button>
                     ))}
+                    {group === 'menuGroupPreferences' && (
+                      <>
+                        <div className="flex gap-1 px-3 py-1" role="group" aria-label={t('menuLanguage')}>
+                          <GlobeAltIcon className="me-1 h-5 w-5 flex-shrink-0 self-center text-slate-400" />
+                          {(['en', 'es', 'ar'] as const).map(code => (
+                            <button
+                              key={code}
+                              type="button"
+                              aria-pressed={language === code}
+                              onClick={() => setLanguage(code)}
+                              className={`min-h-11 min-w-0 flex-1 rounded-xl text-sm font-bold ${
+                                language === code ? 'bg-cyan-600 text-white dark:bg-cyan-500 dark:text-slate-950' : 'bg-slate-100 text-slate-700 dark:bg-white/5 dark:text-slate-200'
+                              }`}
+                            >
+                              {code === 'en' ? 'EN' : code === 'es' ? 'ES' : 'ع'}
+                              <span className="sr-only"> {code === 'en' ? 'English' : code === 'es' ? 'Español' : 'العربية'}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <button type="button" role="switch" aria-checked={theme === 'dark'} className={row} onClick={toggleTheme}>
+                          <MoonIcon className="h-5 w-5 flex-shrink-0 text-slate-500" />
+                          <span className="flex-1">{t('menuTheme')}</span>
+                          <span className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${theme === 'dark' ? 'bg-cyan-500' : 'bg-slate-300'}`}>
+                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${theme === 'dark' ? 'start-[1.375rem]' : 'start-0.5'}`} />
+                          </span>
+                        </button>
+                      </>
+                    )}
                   </div>
-                </div>
-
-                <button type="button" role="switch" aria-checked={theme === 'dark'} className={row} onClick={toggleTheme}>
-                  <MoonIcon className="h-5 w-5 text-slate-500" />
-                  <span className="flex-1">{t('menuTheme')}</span>
-                  <span className={`relative h-6 w-11 rounded-full transition-colors ${theme === 'dark' ? 'bg-cyan-500' : 'bg-slate-300'}`}>
-                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${theme === 'dark' ? 'start-[1.375rem]' : 'start-0.5'}`} />
-                  </span>
-                </button>
-              </div>
-
-              <div className="border-t border-slate-200 p-2 dark:border-white/10">
-                <button type="button" className={row} onClick={toClassic} data-testid="switch-to-classic">
-                  <ArrowUturnLeftIcon className="h-5 w-5 text-slate-500 rtl:-scale-x-100" /> {t('switchToClassic')}
-                </button>
-              </div>
+                ))}
+              </nav>
             </motion.aside>
           </motion.div>
         )}

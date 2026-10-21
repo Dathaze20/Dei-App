@@ -14,15 +14,17 @@ interface CounterGroupProps {
   inOrder: number;
   open: boolean;
   onToggle: () => void;
+  id?: string;
+  className?: string;
   /** Translated section words (MEATS, CHEESES) are shown in capitals; product data never is. */
   caps?: boolean;
   children: React.ReactNode;
 }
 
-const CounterGroup: React.FC<CounterGroupProps> = ({ title, count, inOrder, open, onToggle, caps = false, children }) => {
+const CounterGroup: React.FC<CounterGroupProps> = ({ title, count, inOrder, open, onToggle, id, className = '', caps = false, children }) => {
   const { t } = useTranslation();
   return (
-    <section className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 dark:bg-slate-900/80 dark:ring-white/10" data-testid="counter-group">
+    <section id={id} className={`${className} overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 dark:bg-slate-900/80 dark:ring-white/10`} data-testid="counter-group">
       <button
         type="button"
         aria-expanded={open}
