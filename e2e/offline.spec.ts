@@ -1,5 +1,5 @@
 import { BrowserContext, Page, expect, test } from '@playwright/test';
-import { collectErrors, open, seed, visible } from './helpers';
+import { collectErrors, open, searchAndAdd, seed, visible } from './helpers';
 import { SCREENS, showScreen } from './tour';
 
 // Every test here runs with the internet cut off: only the app's own server (localhost) answers.
@@ -61,39 +61,36 @@ test.describe('works without internet (production build)', () => {
   test('light and dark themes are styled', async ({ page }) => {
     await seed(page, { theme: 'light' });
     expect(await bodyBackground(page)).toBe('rgb(241, 245, 249)'); // slate-100
-    // The bottom navigation is fixed to the bottom of the screen and has its brand-coloured tab.
-    const nav = page.locator('nav').last();
-    await expect(nav).toHaveCSS('position', 'fixed');
+    // The bottom navigation is fixed to the bottom of the screen; the top bar sticks.
+    await expect(page.getByTestId('counter-nav')).toHaveCSS('position', 'fixed');
     await expect(page.locator('header')).toHaveCSS('position', 'sticky');
 
-    await visible(page).button(/theme/i).click();
+    await page.getByTestId('counter-menu-button').click();
+    await page.getByTestId('counter-drawer').getByRole('switch', { name: /Dark mode/ }).click();
     await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-    expect(await bodyBackground(page)).toBe('rgb(2, 6, 23)'); // slate-950
+    expect(await bodyBackground(page)).toBe('rgb(11, 17, 32)'); // the Counter navy
   });
 
-  test('product rows and supplier chips are styled', async ({ page }) => {
+  test('product rows and the supplier bar are styled', async ({ page }) => {
     await seed(page, {});
     // The first product row's picture (offline, the tidy placeholder is shown in its place).
-    const row = page.getByTestId('product-row').first().locator('img, [data-testid="product-thumb-placeholder"]').first();
-    await expect(row).toHaveCSS('width', '56px'); // w-14 (compact rows since C2.2a)
-    await expect(row).toHaveCSS('border-radius', '8px'); // rounded-lg
-    // The selected supplier chip (the first one, on a fresh device).
-    const active = page.locator('main .lg\\:hidden button.rounded-full').first();
-    await expect(active).toHaveCSS('background-color', 'rgb(79, 70, 229)'); // brand primary
-    await expect(active).toHaveCSS('border-radius', '9999px');
+    const thumb = page.getByTestId('counter-row').first().locator('img, [data-testid="product-thumb-placeholder"]').first();
+    await expect(thumb).toHaveCSS('width', '44px'); // w-11
+    await expect(thumb).toHaveCSS('border-radius', '8px'); // rounded-lg
+    // The current supplier: the cyan-to-blue pill.
+    const current = page.getByTestId('current-supplier');
+    await expect(current).toHaveCSS('background-image', /linear-gradient/);
+    await expect(current).toHaveCSS('border-radius', '9999px');
   });
 
   test('the Arizona order totals $77.98 and shares by QR, Copy Text and SMS', async ({ page }) => {
     const errors = collectErrors(page);
     await seed(page, {});
-    for (const flavor of ['Caution Extreme Fruit Punch', 'Caution Extreme Performance']) {
-      await page.getByPlaceholder(/Search all products/).fill(flavor);
-      await visible(page).button(/Add 1 case/).click();
-    }
-    await open(page, '/order');
+    for (const flavor of ['Caution Extreme Fruit Punch', 'Caution Extreme Performance']) await searchAndAdd(page, flavor);
+    await open(page, '/counter/orders');
     await expect(page.getByText('$77.98').first()).toBeVisible();
-    await visible(page).button('Share').click();
-    await expect(page.locator('svg').filter({ hasText: 'Deli Order Details' })).toBeVisible();
+    await visible(page).button('Share Arizona order').click();
+    await expect(page.getByTestId('share-qr').locator('svg')).toBeVisible();
     await expect(visible(page).button('Copy Text')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Send as Text' })).toHaveAttribute('href', /^sms:\?&body=/);
     expect(await page.locator('textarea[readonly]').first().inputValue()).toContain('77.98');
@@ -142,7 +139,10 @@ const unstyledClasses = (page: Page) =>
 const NOT_TAILWIND = new Set([
   'light', // <html> theme marker set by ThemeContext; only `dark` has variants
   'active', // added by React Router's NavLink to the current bottom-nav tab
-  'text-md', // not a Tailwind size (the CDN ignored it too); the OrderPage heading uses the inherited size
+  'text-md', // not a Tailwind size (the CDN ignored it too); used by the shelf tag's flavor line
+  'counter-ui', // <html> marker for the Counter look (index.css uses it as html.counter-ui)
+  'row-pad', // density hooks, styled through html[data-density] in index.css
+  'row-thumb',
 ]);
 
 test('every class on the existing screens has CSS in the bundled stylesheet', async ({ page }) => {

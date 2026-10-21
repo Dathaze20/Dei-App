@@ -114,6 +114,7 @@ const en = {
   // C2.3
   allSuppliers: 'All suppliers',
   allShort: 'All',
+  shelfTagAndroidNote: 'Printing is not available in the Android app yet, and this QR code opens the product only in the web version. Take a screenshot to keep the tag.',
   currentSupplierChange: 'Supplier: {name}. Change supplier',
   suppliersPinHelp: 'Tap a supplier to open it. Tap the star to pin it to the top bar.',
   searchSuppliers: 'Search suppliers',
@@ -248,6 +249,7 @@ const es: Strings = {
   aboutPrivacy: 'Tus productos, pedidos y conteos se guardan solo en este teléfono. No se envía nada a ningún lugar a menos que lo compartas o exportes.',
   allSuppliers: 'Todos los proveedores',
   allShort: 'Todos',
+  shelfTagAndroidNote: 'Imprimir aún no está disponible en la app de Android, y este código QR abre el producto solo en la versión web. Toma una captura de pantalla para guardar la etiqueta.',
   currentSupplierChange: 'Proveedor: {name}. Cambiar proveedor',
   suppliersPinHelp: 'Toca un proveedor para abrirlo. Toca la estrella para fijarlo arriba.',
   searchSuppliers: 'Buscar proveedores',
@@ -380,6 +382,7 @@ const ar: Strings = {
   aboutPrivacy: 'منتجاتك وطلباتك وعمليات العدّ محفوظة على هذا الهاتف فقط. لا يُرسل شيء إلا إذا شاركته أو صدّرته.',
   allSuppliers: 'كل المورّدين',
   allShort: 'الكل',
+  shelfTagAndroidNote: 'الطباعة غير متاحة بعد في تطبيق أندرويد، ورمز QR هذا يفتح المنتج في نسخة الويب فقط. التقط لقطة شاشة للاحتفاظ بالملصق.',
   currentSupplierChange: 'المورّد: {name}. تغيير المورّد',
   suppliersPinHelp: 'اضغط على مورّد لفتحه. اضغط على النجمة لتثبيته في الشريط العلوي.',
   searchSuppliers: 'ابحث عن مورّد',

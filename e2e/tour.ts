@@ -2,8 +2,8 @@ import { Page, expect } from '@playwright/test';
 import { REAL } from './helpers';
 
 /**
- * A fixed tour of the app's existing screens, shared by the class-coverage test (which checks
- * that the local Tailwind build styles every class the screens use) and the before/after visual
+ * A fixed tour of the app's screens, shared by the class-coverage test (which checks that the
+ * local Tailwind build styles every class the screens use) and the before/after visual
  * comparison (visual/). It only uses UI that exists on `main` too, so the same steps can
  * photograph the old build and the new one.
  */
@@ -45,34 +45,41 @@ const C1_ORDER = JSON.stringify({
 });
 const c1Data = { inventory_stockCounts: C1_COUNTS, inventory_currentOrder: C1_ORDER };
 
+// Since C2.3 the Counter screen is the only interface. These steps use Counter UI that exists on
+// `main` too (main has the Counter screen at #/counter since C2.2b), so both builds can be photographed.
+const row = (page: Page, text: string) => page.getByTestId('counter-row').filter({ hasText: text }).first();
+
+/** Opens a supplier: the C2.3 supplier list when there is one, else the C2.2 capsules. */
+const openSupplier = async (page: Page, name: string) => {
+  if (await page.getByTestId('all-suppliers').count()) {
+    await page.getByTestId('all-suppliers').click();
+    await page.getByTestId('supplier-grid-all').getByRole('button', { name: new RegExp(`^${name}`) }).click();
+  } else {
+    await page.getByTestId('counter-capsules').getByRole('button', { name: new RegExp(`^${name}`) }).click();
+  }
+  await page.waitForTimeout(300);
+};
+
 const openFruitPunch = async (page: Page) => {
-  await openArizona(page);
-  await page.getByText('Caution Extreme Fruit Punch').first().click();
-  await expect(page.getByRole('heading', { name: /Product Details|Detalles del Producto|تفاصيل المنتج/ })).toBeVisible();
+  await row(page, 'Caution Extreme Fruit Punch').getByRole('button', { name: /^(Details|Detalles|تفاصيل)/ }).click();
+  await expect(page.getByTestId('product-sheet')).toBeVisible();
 };
 
-const openBoarsHead = async (page: Page) => {
-  await chip(page, "Boar's Head").click();
-  await expect(page.getByText('OvenGold Turkey Breast').first()).toBeVisible();
-};
-
-const chip = (page: Page, name: string) =>
-  page.getByRole('button', { name, exact: true }).filter({ visible: true }).first();
-
-const openArizona = async (page: Page) => {
-  await chip(page, 'Arizona').click();
-  await expect(page.getByText('Caution Extreme Fruit Punch').first()).toBeVisible();
+const openCountSheet = async (page: Page) => {
+  await page.getByTestId('mode-count').click();
+  await row(page, 'Caution Extreme Fruit Punch').getByRole('button', { name: /^(Count|Contar|عدّ):/ }).click();
+  await expect(page.getByTestId('count-sheet')).toBeVisible();
 };
 
 const openShare = async (page: Page) => {
-  await page.getByRole('button', { name: /^(Share|Compartir|مشاركة)$/ }).filter({ visible: true }).first().click();
-  await expect(page.locator('textarea[readonly]').first()).toBeVisible();
+  await page.getByRole('button', { name: /^(Share Arizona order|Compartir pedido de Arizona|مشاركة طلب Arizona)$/ }).click();
+  await expect(page.getByTestId('share-sheet')).toBeVisible();
 };
 
-/** Since C2.2a, Manage lists products in supplier sections that start closed; open the first. */
-const openManageSection = async (page: Page) => {
-  const closed = page.locator('main button[aria-expanded="false"]').filter({ has: page.locator('h3') }).filter({ visible: true });
-  if (await closed.count()) await closed.first().click();
+const openMenu = async (page: Page) => {
+  await page.getByTestId('counter-menu-button').click();
+  await expect(page.getByTestId('counter-drawer')).toBeVisible();
+  await page.waitForTimeout(300);
 };
 
 const scrollToBackup = async (page: Page) => {
@@ -81,89 +88,31 @@ const scrollToBackup = async (page: Page) => {
   await heading.evaluate(el => el.scrollIntoView({ block: 'start' }));
 };
 
+const openEditor = async (page: Page) => {
+  await page.getByRole('button', { name: 'Add product' }).click();
+  await expect(page.getByTestId('product-editor')).toBeVisible();
+};
+
 export const SCREENS: Screen[] = [
-  { name: 'supplier-view-light', theme: 'light', language: 'en', path: '/' },
-  { name: 'arizona-light', theme: 'light', language: 'en', path: '/', prepare: openArizona },
-  {
-    name: 'product-detail-light',
-    theme: 'light',
-    language: 'en',
-    path: '/',
-    prepare: async page => {
-      await openArizona(page);
-      await page.getByText('Caution Extreme Fruit Punch').first().click();
-      await expect(page.getByRole('heading', { name: 'Product Details' })).toBeVisible();
-    },
-  },
-  {
-    name: 'new-supplier-form-light',
-    theme: 'light',
-    language: 'en',
-    path: '/',
-    prepare: async page => {
-      // The round "+" after the supplier chips; its form shows every supplier colour choice.
-      await page.locator('main .lg\\:hidden button.rounded-full:has(svg)').first().click();
-      await expect(page.getByLabel('Supplier Name').or(page.getByPlaceholder('Supplier Name'))).toBeVisible();
-    },
-  },
-  { name: 'order-light', theme: 'light', language: 'en', path: '/order' },
-  { name: 'share-dialog-light', theme: 'light', language: 'en', path: '/order', prepare: openShare },
-  { name: 'manage-light', theme: 'light', language: 'en', path: '/manage' },
-  { name: 'backup-light', theme: 'light', language: 'en', path: '/manage', prepare: scrollToBackup },
-  {
-    name: 'edit-product-light',
-    theme: 'light',
-    language: 'en',
-    path: '/manage',
-    prepare: async page => {
-      await openManageSection(page);
-      await page.locator('button.text-blue-600, button[aria-label="Edit Product"]').filter({ visible: true }).first().click();
-      await expect(page.locator('input[name="name"]')).toBeVisible();
-    },
-  },
-  {
-    name: 'shelf-tag-light',
-    theme: 'light',
-    language: 'en',
-    path: '/manage',
-    prepare: async page => {
-      await openManageSection(page);
-      await page.locator('button.text-green-600, button[aria-label="Shelf tag"]').filter({ visible: true }).first().click();
-      await expect(page.locator('svg[viewBox]').filter({ has: page.locator('path') }).last()).toBeVisible();
-    },
-  },
-  { name: 'supplier-view-dark', theme: 'dark', language: 'en', path: '/' },
-  { name: 'arizona-dark', theme: 'dark', language: 'en', path: '/', prepare: openArizona },
-  { name: 'order-dark', theme: 'dark', language: 'en', path: '/order' },
-  { name: 'share-dialog-dark', theme: 'dark', language: 'en', path: '/order', prepare: openShare },
-  { name: 'backup-dark', theme: 'dark', language: 'en', path: '/manage', prepare: scrollToBackup },
-  { name: 'supplier-view-arabic', theme: 'light', language: 'ar', path: '/' },
-  { name: 'arizona-arabic-dark', theme: 'dark', language: 'ar', path: '/', prepare: openArizona },
-  { name: 'order-arabic', theme: 'light', language: 'ar', path: '/order' },
-  { name: 'manage-arabic', theme: 'light', language: 'ar', path: '/manage' },
-  { name: 'supplier-view-spanish', theme: 'light', language: 'es', path: '/' },
-  // C1 states. The data is also loaded into the `main` build, which ignores what it doesn't know.
-  { name: 'c1-counted-arizona-light', theme: 'light', language: 'en', path: '/', prepare: openArizona, data: c1Data },
-  { name: 'c1-counted-detail-light', theme: 'light', language: 'en', path: '/', prepare: openFruitPunch, data: c1Data },
-  { name: 'c1-counted-detail-arabic-dark', theme: 'dark', language: 'ar', path: '/', prepare: openFruitPunch, data: c1Data },
-  { name: 'c1-boarshead-light', theme: 'light', language: 'en', path: '/', prepare: openBoarsHead, data: c1Data },
-  { name: 'c1-mixed-order-light', theme: 'light', language: 'en', path: '/order', data: c1Data },
-  { name: 'c1-mixed-order-dark', theme: 'dark', language: 'en', path: '/order', data: c1Data },
-  { name: 'c1-mixed-order-spanish', theme: 'light', language: 'es', path: '/order', data: c1Data },
-  { name: 'c1-mixed-share-light', theme: 'light', language: 'en', path: '/order', prepare: openShare, data: c1Data },
-  {
-    name: 'c1-confirm-old-number-light',
-    theme: 'light',
-    language: 'en',
-    path: '/',
-    since: 'c1',
-    prepare: async page => {
-      await openArizona(page);
-      await page.getByText('Caution Extreme Performance').first().click();
-      await page.getByRole('button', { name: /^Use old number/ }).click();
-      await expect(page.getByTestId('confirm-old-number')).toBeVisible();
-    },
-  },
+  { name: 'counter-light', theme: 'light', language: 'en', path: '/counter' },
+  { name: 'counter-dark', theme: 'dark', language: 'en', path: '/counter' },
+  { name: 'product-sheet-light', theme: 'light', language: 'en', path: '/counter', prepare: openFruitPunch },
+  { name: 'count-sheet-dark', theme: 'dark', language: 'en', path: '/counter', prepare: openCountSheet },
+  { name: 'frito-lay-light', theme: 'light', language: 'en', path: '/counter', prepare: page => openSupplier(page, 'Frito-Lay') },
+  { name: 'boarshead-dark', theme: 'dark', language: 'en', path: '/counter', prepare: page => openSupplier(page, "Boar's Head"), data: c1Data },
+  { name: 'orders-light', theme: 'light', language: 'en', path: '/counter/orders', data: c1Data },
+  { name: 'orders-dark', theme: 'dark', language: 'en', path: '/counter/orders', data: c1Data },
+  { name: 'share-light', theme: 'light', language: 'en', path: '/counter/orders', prepare: openShare },
+  { name: 'catalog-light', theme: 'light', language: 'en', path: '/counter/catalog' },
+  { name: 'editor-dark', theme: 'dark', language: 'en', path: '/counter/catalog', prepare: openEditor },
+  { name: 'settings-light', theme: 'light', language: 'en', path: '/counter/settings' },
+  { name: 'backup-dark', theme: 'dark', language: 'en', path: '/counter/settings', prepare: scrollToBackup },
+  { name: 'menu-dark', theme: 'dark', language: 'en', path: '/counter', prepare: openMenu },
+  { name: 'menu-light', theme: 'light', language: 'en', path: '/counter', prepare: openMenu },
+  { name: 'counter-arabic-dark', theme: 'dark', language: 'ar', path: '/counter', data: c1Data },
+  { name: 'orders-arabic', theme: 'light', language: 'ar', path: '/counter/orders', data: c1Data },
+  { name: 'counter-spanish', theme: 'light', language: 'es', path: '/counter', data: c1Data },
+  { name: 'orders-spanish', theme: 'light', language: 'es', path: '/counter/orders', data: c1Data },
 ];
 
 /**

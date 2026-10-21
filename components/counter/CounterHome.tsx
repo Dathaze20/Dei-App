@@ -23,7 +23,7 @@ import { ui } from '../ui/styles';
 import { ArrowsPointingInIcon, ChevronRightIcon, ChevronUpDownIcon, ListBulletIcon } from '../shared/icons';
 import { useToast } from '../ui/Toast';
 import { useDevicePrefs } from '../../hooks/useDevicePrefs';
-import { quickSuppliers, withFavoriteToggled, WorkMode } from '../../utils/devicePrefs';
+import { quickSuppliers, withFavoriteToggled, withSupplierChosen, WorkMode } from '../../utils/devicePrefs';
 import SupplierSelector from './SupplierSelector';
 import CounterGroup from './CounterGroup';
 import CounterRow, { RowMode } from './CounterRow';
@@ -159,6 +159,14 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
     }
   }, [openProductId, activeId, getProductById, onProductOpened]);
 
+  // The supplier shown before the first choice (the first one) counts as recent too, so going
+  // back to it is one tap.
+  const choose = (id: string) => {
+    if (id === activeId) return;
+    if (!prefs.recent.includes(activeId)) setPrefs(p => withSupplierChosen(p, activeId));
+    onSelectSupplier(id);
+  };
+
   const existingIds = useMemo(() => new Set(suppliers.map(s => s.id)), [suppliers]);
   const quickIds = quickSuppliers(prefs, activeId, existingIds);
 
@@ -180,7 +188,7 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
             quickIds={quickIds}
             favorites={prefs.favorites}
             badges={badges}
-            onSelect={onSelectSupplier}
+            onSelect={choose}
             onToggleFavorite={id => setPrefs(p => withFavoriteToggled(p, id))}
           />
           <div className="flex flex-wrap items-center gap-2">

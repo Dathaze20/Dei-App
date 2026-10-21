@@ -52,8 +52,8 @@ test.describe('Restore from Backup', () => {
     expect(JSON.parse(restored.inventory_products)).toHaveLength(141);
     expect(JSON.parse(restored.inventory_suppliers)).toHaveLength(13);
     expect(restored.other_app_auth).toBe(OTHER_APP.other_app_auth); // the file's value was never written
-    await open(page, '/order');
-    await expect(page.getByText('$77.98').first()).toBeVisible();
+    await open(page, '/counter/orders');
+    await expect(page.getByTestId('order-total')).toContainText('$77.98');
   });
 
   test('an unverified backup needs an explicit acknowledgement', async ({ page }) => {

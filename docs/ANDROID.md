@@ -26,7 +26,7 @@ These are checked automatically by `npm run check:android` and by every CI and r
 ## Data across updates
 - **Updates keep data.** Updating with the same ID, key and origin keeps the app's private storage: products, suppliers, orders, verified stock counts and safety snapshots.
 - **Uninstalling deletes data.** Uninstalling deletes all of it. Always **Export** before uninstalling or changing phones.
-- **No automatic backup.** `android:allowBackup="false"` plus `data_extraction_rules.xml`: Android does not copy the data to Google's cloud or to another phone on its own. **Manage → Backup → Export** is the backup.
+- **No automatic backup.** `android:allowBackup="false"` plus `data_extraction_rules.xml`: Android does not copy the data to Google's cloud or to another phone on its own. **Menu → Backup & Restore → Export My Data** is the backup.
 - **Saving a backup file.** In the app, Export opens Android's "Save to…" screen (choose *Downloads*). Restore uses Android's file picker. Undo and safety snapshots work as on the web.
 
 ## Permissions
@@ -35,7 +35,7 @@ These are checked automatically by `npm run check:android` and by every CI and r
 - `CAMERA`: the existing barcode scanner. It is only requested when the scanner opens.
 
 ## Check for updates
-**Classic View: Manage → App updates. Counter screen: Menu → App updates.** Then **Check for updates**. The panel appears only in the Android app; the web version is unchanged.
+**Menu → App updates → Check for updates.** The panel appears only in the Android app; the web version is unchanged.
 1. **Check.** The app reads `https://api.github.com/repos/Dathaze20/Dei-App/releases/latest`.
    - Drafts and pre-releases are never offered.
    - Offline, no release yet, GitHub busy and errors each get their own plain message.

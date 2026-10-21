@@ -59,7 +59,7 @@ const OrderLines: React.FC<{ group: SummaryGroup }> = ({ group }) => {
               </div>
               {lineTotal !== null && <p className="ms-auto flex-shrink-0 font-bold tabular-nums">{money(lineTotal)}</p>}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 ps-14">
+            <div className="mt-1 flex flex-wrap items-center gap-2 ps-[min(3.5rem,12%)]">
               <div dir="ltr" className="flex items-center rounded-xl bg-slate-100 ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10">
                 <button type="button" onClick={() => updateOrderItemQuantity(item.productId, item.quantity - 1, unit)} aria-label={t('removeOne', { name })} className="inline-flex h-11 w-11 items-center justify-center">
                   <MinusIcon className="h-5 w-5" />

@@ -1,64 +1,135 @@
-// The Counter screen (C2.2b): opt-in, remembered on the phone, never in backups; one-tap ordering
-// on the one saved order; Boar's Head item lines; search; Orders, Catalog and the menu; and the
-// same phone-layout guarantees as Classic View.
+// The Counter screen, the only interface since C2.3: phones upgrading from v0.1.1 (either screen
+// style) open it with all their data; old addresses still work; supplier choice is remembered;
+// one-tap ordering on the one saved order; Boar's Head item lines; search; the menu; phone layout.
 import { Page, expect, test } from '@playwright/test';
-import { REAL, dumpStorage, exportViaUi, open, seed } from './helpers';
+import { REAL, dumpStorage, exportViaUi, open, pickSupplier, seed } from './helpers';
 import { expectTargets, openPhone, overflowing, systemBars } from './layout';
 
 const UI_MODE_KEY = 'deliordernyc_sys_uiMode';
+const PREFS_KEY = 'deliordernyc_sys_prefs';
 const COUNTER = { [UI_MODE_KEY]: 'counter' };
 const order = async (page: Page) => JSON.parse((await dumpStorage(page)).inventory_currentOrder).items as { productId: string; quantity: number; unit?: string }[];
 const row = (page: Page, text: string) => page.getByTestId('counter-row').filter({ hasText: text }).first();
 
-test.describe('opt-in, remembered, and Classic View always reachable', () => {
-  test('a fresh phone opens Classic View; nothing about the screen style is stored', async ({ page }) => {
-    await seed(page, REAL);
-    await expect(page.getByTestId('counter-screen')).toHaveCount(0);
-    await expect(page.getByPlaceholder(/Search all products/)).toBeVisible();
-    expect((await dumpStorage(page))[UI_MODE_KEY]).toBeUndefined();
-  });
+test.describe('one interface: upgrading from v0.1.1 and older addresses', () => {
+  for (const [label, extra] of [
+    ['a phone that used Classic View', { [UI_MODE_KEY]: 'classic' }],
+    ['a phone that used the Counter screen', COUNTER],
+    ['a phone that never chose', {}],
+  ] as const) {
+    test(`${label} opens Counter with all its data, and nothing is rewritten`, async ({ page }) => {
+      await seed(page, { ...REAL, ...extra });
+      await expect(page).toHaveURL(/#\/counter$/);
+      await expect(page.getByTestId('counter-screen')).toBeVisible();
+      await expect(page.getByTestId('current-supplier')).toContainText('Arizona');
+      await expect(page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ })).toContainText('2');
+      // Opening the app wrote nothing over the saved data; the old screen-style key is left as it was.
+      expect(await dumpStorage(page)).toEqual({ ...REAL, ...extra });
+      await expect(page.getByTestId('screen-style-panel')).toHaveCount(0);
+      await page.getByTestId('counter-menu-button').click();
+      await expect(page.getByTestId('switch-to-classic')).toHaveCount(0);
+    });
+  }
 
-  test('choosing Counter in Manage opens it, and the app opens there next time', async ({ page }) => {
-    await seed(page, REAL);
+  test('old addresses lead to their Counter places', async ({ page }) => {
+    await seed(page, REAL, '/order');
+    await expect(page).toHaveURL(/#\/counter\/orders$/);
     await open(page, '/manage');
-    await page.getByTestId('screen-style-panel').getByRole('button', { name: 'Counter (new)' }).click();
+    await expect(page).toHaveURL(/#\/counter\/settings$/);
+    await open(page, '/history');
     await expect(page).toHaveURL(/#\/counter$/);
-    await expect(page.getByTestId('counter-screen')).toBeVisible();
-    expect((await dumpStorage(page))[UI_MODE_KEY]).toBe('counter');
-
-    await page.goto('/#/');
-    await page.reload();
-    await expect(page).toHaveURL(/#\/counter$/);
-    await expect(page.getByTestId('counter-screen')).toBeVisible();
   });
 
-  test('the menu switches back to Classic View, which then stays', async ({ page }) => {
-    await seed(page, { ...REAL, ...COUNTER });
-    await expect(page.getByTestId('counter-screen')).toBeVisible();
-    await page.getByTestId('counter-menu-button').click();
-    await page.getByTestId('switch-to-classic').click();
-    await expect(page).toHaveURL(/#\/$/);
-    await expect(page.getByPlaceholder(/Search all products/)).toBeVisible();
-    expect((await dumpStorage(page))[UI_MODE_KEY]).toBe('classic');
-    await page.reload();
-    await expect(page.getByTestId('counter-screen')).toHaveCount(0);
+  test('shelf-tag QR links (#/product/<id>) open that product, on its supplier', async ({ page }) => {
+    await seed(page, REAL);
+    // Opened from a scanned code: a fresh start of the app at that address.
+    await page.goto('/?scan=1#/product/bh_provolone');
+    await expect(page).toHaveURL(/#\/counter$/);
+    await expect(page.getByTestId('product-sheet')).toContainText('Provolone Cheese');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('current-supplier')).toContainText("Boar's Head");
+    // A product that no longer exists: Counter opens and says so.
+    await page.goto('/?scan=2#/product/not_a_product');
+    await expect(page.getByTestId('toast')).toHaveText('That product is no longer in the catalog.');
+    await expect(page.getByTestId('product-sheet')).toHaveCount(0);
   });
 
-  test('the screen style is never in a backup, and data is identical in both screens', async ({ page }) => {
-    await seed(page, { ...REAL, ...COUNTER });
-    const before = await dumpStorage(page);
+  test('display preferences are never in a backup; the data exported is exactly the saved data', async ({ page }) => {
+    await seed(page, REAL);
+    await pickSupplier(page, 'Frito-Lay'); // writes the device-only preferences
     const exported = JSON.parse(await exportViaUi(page));
-    expect(Object.keys(exported.raw)).not.toContain(UI_MODE_KEY);
+    expect(Object.keys(exported.raw).filter(key => key.startsWith('deliordernyc_sys_'))).toEqual([]);
     for (const key of Object.keys(REAL)) expect(exported.raw[key]).toBe(REAL[key]);
-    // Opening the Counter screen wrote nothing but what was already there.
-    const { [UI_MODE_KEY]: mode, ...rest } = before;
-    expect(mode).toBe('counter');
-    expect(rest).toEqual(REAL);
+    expect(Object.keys(await dumpStorage(page))).toContain(PREFS_KEY);
+  });
+});
+
+test.describe('supplier selector: no sideways scrolling, favourites, recent, remembered', () => {
+  test('every supplier is in one list; picking one closes it; the choice survives a restart', async ({ page }) => {
+    await seed(page, REAL);
+    await page.getByTestId('all-suppliers').click();
+    await expect(page.getByTestId('supplier-grid-all').getByTestId('supplier-tile')).toHaveCount(JSON.parse(REAL.inventory_suppliers).length);
+    await page.getByRole('searchbox', { name: 'Search suppliers' }).fill('red');
+    await expect(page.getByTestId('supplier-grid-all').getByTestId('supplier-tile')).toHaveText(['Red Bull']);
+    await page.getByTestId('supplier-grid-all').getByRole('button', { name: /^Red Bull/ }).click();
+    await expect(page.getByTestId('supplier-grid')).toHaveCount(0);
+    await expect(page.getByTestId('current-supplier')).toContainText('Red Bull');
+    await page.reload();
+    await expect(page.getByTestId('current-supplier')).toContainText('Red Bull');
+    // The previous supplier is one tap away.
+    await page.getByTestId('supplier-bar').getByRole('button', { name: /^Arizona/ }).click();
+    await expect(page.getByTestId('current-supplier')).toContainText('Arizona');
   });
 
-  test('shelf-tag links still open the product in Classic View', async ({ page }) => {
-    await seed(page, { ...REAL, ...COUNTER }, '/product/az_rx_fruitpunch_slim11_5');
-    await expect(page.getByRole('heading', { name: 'Product Details' })).toBeVisible();
+  test('pinned suppliers come first in the bar and the list, and stay pinned', async ({ page }) => {
+    await seed(page, REAL);
+    await page.getByTestId('all-suppliers').click();
+    await page.getByRole('button', { name: "Pin Boar's Head" }).click();
+    await expect(page.getByRole('button', { name: "Unpin Boar's Head" }).first()).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
+    const quick = page.getByTestId('quick-supplier');
+    await expect(quick.first()).toContainText("Boar's Head");
+    await page.reload();
+    await expect(page.getByTestId('quick-supplier').first()).toContainText("Boar's Head");
+    await page.getByTestId('all-suppliers').click();
+    await expect(page.getByTestId('supplier-grid').getByRole('heading', { name: 'Pinned' })).toBeVisible();
+  });
+
+  test('leaving Counter and coming back keeps the supplier, the open sections and the place in the list', async ({ page }) => {
+    await seed(page, REAL);
+    await page.getByTestId('jump-button').click();
+    await page.getByTestId('jump-sheet').getByRole('button', { name: /^23 oz\. Big Can/ }).click();
+    const bigCan = page.getByTestId('counter-group').filter({ has: page.getByRole('heading', { name: '23 oz. Big Can', exact: true }) });
+    await expect(bigCan.getByRole('button', { expanded: true })).toBeVisible();
+    await row(page, 'Mucho Mango').getByRole('button', { name: /^Add one/ }).click();
+    const y = await page.evaluate(() => window.scrollY);
+    expect(y).toBeGreaterThan(300);
+    await page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ }).click();
+    await expect(page.getByTestId('counter-orders')).toBeVisible();
+    await page.getByTestId('counter-nav').getByRole('link', { name: /Counter/ }).click();
+    await expect(bigCan.getByRole('button', { expanded: true })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(y - 60);
+  });
+
+  test('Close all sections, then reopen one from the section list', async ({ page }) => {
+    await seed(page, REAL);
+    await page.getByTestId('jump-button').click();
+    await page.getByTestId('collapse-all').click();
+    await expect(page.getByTestId('counter-row')).toHaveCount(0);
+    await page.getByTestId('jump-button').click();
+    await page.getByTestId('jump-sheet').getByRole('button', { name: /^12 oz\. Can/ }).click();
+    await expect(page.getByTestId('counter-row')).toHaveCount(10);
+  });
+
+  test('two products that differ only at the end of the flavor are both readable (two lines, no cut-off)', async ({ page }) => {
+    await seed(page, REAL);
+    const names = page.getByTestId('row-name');
+    await expect(names.filter({ hasText: 'Caution Extreme Fruit Punch' })).toHaveCount(1);
+    for (const text of ['Caution Extreme Fruit Punch', 'Caution Extreme Performance']) {
+      const el = names.filter({ hasText: text }).first();
+      // Fully shown: nothing hidden by the two-line limit.
+      expect(await el.evaluate(e => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
+    }
   });
 });
 
@@ -71,7 +142,7 @@ test.describe('one-tap ordering on the one saved order', () => {
     await lowCarb.getByRole('button', { name: /^Add one/ }).click();
     expect((await order(page)).find(i => i.productId === 'az_rx_lowcarb_slim11_5')?.quantity).toBe(2);
     await expect(page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ })).toContainText('3');
-    await expect(page.getByTestId('counter-capsules').getByRole('button', { name: /Arizona/ })).toContainText('3');
+    await expect(page.getByTestId('current-supplier')).toContainText('3');
 
     await lowCarb.getByRole('button', { name: /^Remove one/ }).click();
     await lowCarb.getByRole('button', { name: /^Remove one/ }).click();
@@ -84,7 +155,7 @@ test.describe('one-tap ordering on the one saved order', () => {
 
   test("Boar's Head: MEATS then CHEESES, item lines, no stock or prices", async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
-    await page.getByTestId('counter-capsules').getByRole('button', { name: "Boar's Head" }).click();
+    await pickSupplier(page, "Boar's Head");
     const groups = page.getByTestId('counter-group').locator('h3');
     await expect(groups).toHaveText(['Meats', 'Cheeses']);
     await expect(page.getByTestId('stock-label')).toHaveCount(0);
@@ -119,7 +190,7 @@ test.describe('one-tap ordering on the one saved order', () => {
     await expect(page.getByTestId('counter-row')).toHaveCount(1);
     await expect(page.getByTestId('counter-group').locator('h3')).toHaveText(["Boar's Head"]);
     await page.getByRole('button', { name: 'Close search' }).click();
-    await expect(page.getByTestId('counter-capsules')).toBeVisible();
+    await expect(page.getByTestId('supplier-bar')).toBeVisible();
     await expect(page.getByRole('searchbox')).toHaveCount(0);
   });
 });
@@ -149,7 +220,7 @@ test.describe('Orders, Catalog and the menu', () => {
     const drawer = page.getByTestId('counter-drawer');
     await drawer.getByRole('switch', { name: /Dark mode/ }).click();
     await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-    await drawer.getByRole('button', { name: 'Español' }).click();
+    await drawer.getByRole('button', { name: /Español/ }).click();
     await expect(page.getByTestId('counter-nav')).toContainText('Mostrador');
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveCount(0);
@@ -157,9 +228,10 @@ test.describe('Orders, Catalog and the menu', () => {
 });
 
 test.describe('Counter phone layout', () => {
-  for (const width of [360, 412]) {
-    for (const text of [100, 130, 160]) {
+  for (const width of [320, 360, 384, 412]) {
+    for (const text of [100, 130, 160, 200]) {
       test(`${width}px, text ${text}%: every Counter place fits and clears the system bars`, async ({ browser }) => {
+        test.setTimeout(120_000);
         const phone = await openPhone(browser, { width, text, storage: COUNTER }, '/counter');
         const { page } = phone;
         for (const path of ['/counter', '/counter/orders', '/counter/catalog', '/counter/settings']) {
@@ -175,6 +247,14 @@ test.describe('Counter phone layout', () => {
         await page.getByTestId('counter-menu-button').click();
         await page.waitForTimeout(400);
         expect(await overflowing(page), 'menu').toEqual([]);
+        await page.keyboard.press('Escape');
+        await expect(page.getByTestId('counter-drawer')).toHaveCount(0);
+        await page.getByTestId('all-suppliers').click();
+        await page.waitForTimeout(400);
+        expect(await overflowing(page), 'all suppliers').toEqual([]);
+        // Supplier names are never cut: each tile's name fits on its lines.
+        const cut = await page.getByTestId('supplier-tile').locator('span[dir="auto"]').evaluateAll(els => els.filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent));
+        expect(cut, 'supplier names cut off').toEqual([]);
         expect(phone.errors).toEqual([]);
         await phone.close();
       });
@@ -196,7 +276,7 @@ test.describe('Counter phone layout', () => {
     const phone = await openPhone(browser, { width: 360, storage: COUNTER }, '/counter');
     const { page } = phone;
     await expectTargets(page, '[data-testid="counter-screen"] header button');
-    await expectTargets(page, '[data-testid="counter-capsules"] button');
+    await expectTargets(page, '[data-testid="supplier-bar"] button');
     await expectTargets(page, '[data-testid="counter-group"] > button');
     await expectTargets(page, '[data-testid="counter-row"] button');
     await expectTargets(page, '[data-testid="counter-nav"] a, [data-testid="counter-nav"] button');
