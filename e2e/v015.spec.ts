@@ -49,7 +49,7 @@ test.describe('Counter: pills and cards', () => {
     const cards = await page.getByTestId('counter-row').evaluateAll(els => els.map(e => e.getBoundingClientRect()));
     expect(cards.every(c => c.bottom < 915)).toBe(true); // all three on the first screen
     await page.getByTestId('counter-row').filter({ hasText: 'Caution Low-Carb' }).getByRole('button', { name: /^Add one/ }).click();
-    await expect(page.getByTestId('counter-row').filter({ hasText: 'Caution Low-Carb' }).getByTestId('counter-stepper')).toContainText('1');
+    await expect(page.getByTestId('counter-row').filter({ hasText: 'Caution Low-Carb' }).getByTestId('row-selected')).toHaveText('1');
   });
 
   test('the stock summary is quiet: not counted is not urgent; in Order mode it appears only for verified low or out', async ({ page }) => {
@@ -70,9 +70,11 @@ test.describe('shelf photos', () => {
     await seed(page, REAL, '/counter');
     await page.getByTestId('mode-count').click();
     await page.getByTestId('open-shelf-check').click();
-    await expect(page.getByTestId('shelf-checks')).toContainText('Nothing is counted automatically');
-    await page.getByTestId('new-shelf-check').click();
-    await page.getByTestId('shelf-photo-input').setInputFiles([
+    // The explanations are behind one Help button (v0.1.6), so the photos keep the screen.
+    await page.getByTestId('shelf-help').click();
+    await expect(page.getByTestId('shelf-help-sheet')).toContainText('Nothing is counted automatically');
+    await page.getByTestId('shelf-help-sheet').getByRole('button', { name: /Close/ }).click();
+    await page.getByTestId('new-shelf-gallery-input').setInputFiles([
       { name: 'a.png', mimeType: 'image/png', buffer: PNG },
       { name: 'b.png', mimeType: 'image/png', buffer: PNG },
     ]);
@@ -110,8 +112,7 @@ test.describe('shelf photos', () => {
     }, '012345678905');
     await page.goto('/#/counter/shelf');
     await page.reload();
-    await page.getByTestId('new-shelf-check').click();
-    await page.getByTestId('shelf-photo-input').setInputFiles([
+    await page.getByTestId('new-shelf-gallery-input').setInputFiles([
       { name: 'code.png', mimeType: 'image/png', buffer: await ean13Png(page, code) },
       { name: 'other.png', mimeType: 'image/png', buffer: await ean13Png(page, ean13('400638133393')) },
     ]);

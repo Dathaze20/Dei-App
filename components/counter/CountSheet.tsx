@@ -1,6 +1,7 @@
 // components/counter/CountSheet.tsx
 //
-// Counting stock at the shelf: a big number, a whole-number keypad, −1/+1, Save and Save & Next.
+// Counting stock at the shelf (compact in v0.1.6): the number with −1/+1 beside it, a whole-number
+// keypad (48 px keys), Save & Next first, then Cancel and Save.
 // All of C1's protections stay: whole numbers only; nothing typed is "no count", never 0; an
 // unverified old number is never shown as counted; a count is reported saved only after it is
 // really stored; a refused save (blocked, phone did not save) says so and does NOT move on, and
@@ -177,27 +178,36 @@ const CountSheet: React.FC<CountSheetProps> = ({ productId, orderedIds, onClose,
       }
     >
       <div className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-          <p className={ui.eyebrow}>{t('countHowMany', { unit: unitWord })}</p>
-          {position >= 0 && <p className={ui.muted}>{t('countPosition', { index: position + 1, total: orderedIds.length })}</p>}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+          <div className="min-w-0">{lastCount}</div>
+          {position >= 0 && <p className={`${ui.muted} whitespace-nowrap`}>{t('countPosition', { index: position + 1, total: orderedIds.length })}</p>}
         </div>
-        <div className="text-sm">{lastCount}</div>
 
-        <div
-          className={`flex min-h-20 items-center justify-center gap-2 rounded-2xl px-3 ring-2 ${
-            message?.tone === 'error' ? 'ring-red-400' : 'ring-cyan-400/60'
-          } bg-slate-50 dark:bg-slate-950/60`}
-          aria-live="polite"
-          data-testid="count-display"
-        >
-          {text === '' ? (
-            <span className="text-2xl font-semibold text-slate-400">{t('countNothingTyped')}</span>
-          ) : (
-            <>
-              <span dir="ltr" className="text-5xl font-extrabold tabular-nums tracking-tight">{text}</span>
-              <span className="text-lg font-semibold text-slate-500 dark:text-slate-400">{unitWord}</span>
-            </>
-          )}
+        {/* The number, with −1 and +1 beside it (one row less than before). */}
+        <div dir="ltr" className="flex items-stretch gap-2">
+          <button type="button" disabled={disabled} onClick={() => edit(stepCount(text, -1))} aria-label={t('countMinusOne')} className={`${ui.secondary} !min-h-14 w-14 flex-shrink-0 !px-0`}>
+            <MinusIcon className="h-5 w-5" />
+          </button>
+          <div
+            className={`flex min-h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-2 ring-2 ${
+              message?.tone === 'error' ? 'ring-red-400' : 'ring-cyan-400/60'
+            } bg-slate-50 dark:bg-slate-950/60`}
+            aria-live="polite"
+            aria-label={t('countHowMany', { unit: unitWord })}
+            data-testid="count-display"
+          >
+            {text === '' ? (
+              <span className="text-center text-lg font-semibold leading-tight text-slate-400">{t('countHowMany', { unit: unitWord })}</span>
+            ) : (
+              <>
+                <span className="text-4xl font-extrabold tabular-nums tracking-tight">{text}</span>
+                <span className="text-base font-semibold text-slate-500 dark:text-slate-400">{unitWord}</span>
+              </>
+            )}
+          </div>
+          <button type="button" disabled={disabled} onClick={() => edit(stepCount(text, 1))} aria-label={t('countPlusOne')} className={`${ui.secondary} !min-h-14 w-14 flex-shrink-0 !px-0`}>
+            <PlusIcon className="h-5 w-5" />
+          </button>
         </div>
 
         {message && (
@@ -223,13 +233,6 @@ const CountSheet: React.FC<CountSheetProps> = ({ productId, orderedIds, onClose,
               {key === 'backspace' ? <BackspaceIcon className="mx-auto h-6 w-6" /> : key === 'clear' ? 'C' : key}
             </button>
           ))}
-          <button type="button" disabled={disabled} onClick={() => edit(stepCount(text, -1))} aria-label={t('countMinusOne')} className={`${ui.secondary} col-span-1`}>
-            <MinusIcon className="h-5 w-5" /> 1
-          </button>
-          <span />
-          <button type="button" disabled={disabled} onClick={() => edit(stepCount(text, 1))} aria-label={t('countPlusOne')} className={`${ui.secondary} col-span-1`}>
-            <PlusIcon className="h-5 w-5" /> 1
-          </button>
         </div>
 
         {view?.state === 'unverified' && !confirmingOld && (
@@ -248,7 +251,6 @@ const CountSheet: React.FC<CountSheetProps> = ({ productId, orderedIds, onClose,
             </button>
           </div>
         )}
-        <p className={`${ui.muted} text-xs`}>{t('stockCountHelp')}</p>
       </div>
     </Sheet>
   );

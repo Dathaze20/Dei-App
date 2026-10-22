@@ -40,14 +40,14 @@ test.describe('counting with the keypad', () => {
     await seed(page, { ...REAL, ...COUNTER });
     await startCounting(page, 'Caution Extreme Fruit Punch');
     await expect(sheet(page)).toContainText('How many cans on the shelf?');
-    await expect(sheet(page).getByTestId('count-display')).toHaveText('Nothing typed');
+    await expect(sheet(page).getByTestId('count-display')).toHaveText('How many cans on the shelf?');
     await type(page, '24');
     await expect(sheet(page).getByTestId('count-display')).toHaveText('24cans');
     await sheet(page).getByRole('button', { name: 'Save & Next' }).click();
 
     await expect(sheet(page).getByRole('heading', { name: 'Caution Extreme Performance' })).toBeVisible();
     await expect(sheet(page).getByTestId('count-message')).toHaveText('Saved: Arizona RX Energy Caution Extreme Fruit Punch, 24 cans.');
-    await expect(sheet(page).getByTestId('count-display')).toHaveText('Nothing typed');
+    await expect(sheet(page).getByTestId('count-display')).toHaveText('How many cans on the shelf?');
     const first = (await counts(page)).products.az_rx_fruitpunch_slim11_5.counts[0];
     expect(first).toMatchObject({ units: 24, source: 'counter', unitsPerCaseAtCount: 24 });
 
@@ -89,11 +89,11 @@ test.describe('counting with the keypad', () => {
     expect(await counts(page)).toBeNull();
     // −1 on blank keeps it blank; +1 on blank gives 1; C clears.
     await sheet(page).getByRole('button', { name: 'One less' }).click();
-    await expect(sheet(page).getByTestId('count-display')).toHaveText('Nothing typed');
+    await expect(sheet(page).getByTestId('count-display')).toHaveText('How many cans on the shelf?');
     await sheet(page).getByRole('button', { name: 'One more' }).click();
     await expect(sheet(page).getByTestId('count-display')).toHaveText('1cans');
     await sheet(page).getByRole('button', { name: 'Clear the number' }).click();
-    await expect(sheet(page).getByTestId('count-display')).toHaveText('Nothing typed');
+    await expect(sheet(page).getByTestId('count-display')).toHaveText('How many cans on the shelf?');
   });
 
   test('a save the phone refuses says NOT saved, keeps what was typed, and does not move on', async ({ page }) => {
@@ -218,7 +218,10 @@ test.describe('ordering by supplier', () => {
     await pickSupplier(page, "Boar's Head");
     await page.getByRole('checkbox', { name: /Provolone Cheese/ }).click();
     await page.getByRole('checkbox', { name: /OvenGold Turkey/ }).click();
-    await row(page, 'Provolone Cheese').getByRole('button', { name: /^Add one/ }).click();
+    // The ticked row shows ✓ and the quantity; tapping it opens the adjuster.
+    await row(page, 'Provolone Cheese').getByTestId('row-selected').click();
+    await page.getByTestId('quantity-plus').click();
+    await page.getByTestId('quantity-done').click();
     expect(await order(page)).toEqual([
       { productId: 'bh_provolone', quantity: 2, unit: 'item' },
       { productId: 'bh_turkey', quantity: 1, unit: 'item' },
@@ -237,9 +240,10 @@ test.describe('ordering by supplier', () => {
     await page.getByTestId('counter-nav').getByRole('link', { name: /Counter/ }).click();
     await page.getByTestId('order-tray').click();
 
-    // Unticking takes it off the list completely.
+    // Remove (in the adjuster) takes it off the list completely.
     await back(page);
-    await page.getByRole('checkbox', { name: /Provolone Cheese/ }).click();
+    await row(page, 'Provolone Cheese').getByTestId('row-selected').click();
+    await page.getByTestId('quantity-remove').click();
     expect(await order(page)).toEqual([{ productId: 'bh_turkey', quantity: 1, unit: 'item' }]);
   });
 
@@ -419,7 +423,7 @@ test.describe('Android Back', () => {
     await page.getByRole('searchbox').fill('provolone');
     expect(await back(page)).toBe(true);
     await expect(page.getByRole('searchbox')).toHaveCount(0);
-    await expect(page.getByTestId('supplier-bar')).toBeVisible();
+    await expect(page.getByTestId('counter-bar')).toBeVisible();
   });
 
   test('an old address (#/order) also comes back to Counter with Back, then leaves', async ({ page }) => {

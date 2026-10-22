@@ -179,7 +179,7 @@ test('restoring an older backup that has an older count for the same product nee
 test.describe("Boar's Head: a plain weekly item list", () => {
   test('no stock line, no count prompt, no warnings, no case wording', async ({ page }) => {
     await seed(page, { ...REAL, inventory_currentOrder: EMPTY_ORDER });
-    await page.getByTestId('all-suppliers').click();
+    await page.getByTestId('current-supplier').click();
     await page.getByTestId('supplier-grid-all').getByRole('button', { name: /^Boar's Head/ }).click();
     await expect(page.getByText('OvenGold Turkey Breast').first()).toBeVisible();
     await expect(page.getByTestId('stock-label')).toHaveCount(0);

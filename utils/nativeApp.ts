@@ -31,6 +31,11 @@ export interface DeliNativePlugin {
   saveTextFile(options: { fileName: string; text: string; mimeType?: string }): Promise<{ saved: boolean }>;
   /** Added in v0.1.3: the product id of a deliordernyc://product/<id> link, once. */
   consumeProductLink(): Promise<{ productId: string | null }>;
+  /** Added in v0.1.6: shelf photos through a private inbox (utils/shelfCamera.ts). */
+  takeShelfPhoto(): Promise<{ taken: boolean }>;
+  chooseShelfPhotos(): Promise<{ taken: boolean }>;
+  takeShelfPhotos(): Promise<{ photos: { name: string; dataUrl: string }[]; failed: number; capturing: boolean; cancelled?: boolean }>;
+  deleteShelfPhotos(options: { names: string[] }): Promise<void>;
   addListener(event: 'updateProgress', listener: (progress: { received: number; total: number }) => void): Promise<PluginListenerHandle>;
 }
 

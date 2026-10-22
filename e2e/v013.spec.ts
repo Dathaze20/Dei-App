@@ -13,10 +13,10 @@ const back = (page: Page) => page.evaluate(() => window.deliBack!());
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 
 test.describe('rows and navigation', () => {
-  test('three tabs (no Menu tab), the menu stays in the header, and the modes read Order | Count', async ({ page }) => {
+  test('four tabs (Camera added in v0.1.6, no Menu tab), the menu stays in the header, and the modes read Order | Count', async ({ page }) => {
     await seed(page, REAL, '/counter');
     const nav = page.getByTestId('counter-nav');
-    await expect(nav.getByRole('link')).toHaveText([/^Counter$/, /^\d*Orders$/, /^Catalog$/]);
+    await expect(nav.getByRole('link')).toHaveText([/^Counter$/, /^\d*Orders$/, /^\d*Camera$/, /^Catalog$/]);
     await expect(nav.getByRole('button')).toHaveCount(0);
     await expect(page.getByTestId('mode-order')).toHaveText('Order');
     await expect(page.getByTestId('mode-count')).toHaveText('Count');
@@ -24,23 +24,27 @@ test.describe('rows and navigation', () => {
     await expect(page.getByTestId('counter-drawer')).toBeVisible();
   });
 
-  test('pictures lead: big picture cards two per row at 412px, the 68px list in Compact; names 15px; tiles drawn offline', async ({ page }) => {
+  test('rows (v0.1.6): 52px pictures, 44px in Compact, two big cards per row in Large pictures; names 15px; tiles drawn offline', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await seed(page, REAL, '/counter');
     const card = row(page, 'Caution Extreme Fruit Punch');
     const thumb = card.getByTestId('product-thumb-placeholder');
     const box = (await thumb.boundingBox())!;
-    expect(box.width).toBeGreaterThan(160);
-    expect(box.height).toBeGreaterThan(80);
+    expect(box.width).toBeCloseTo(52, 0);
     expect(await thumb.evaluate(e => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
     expect(await card.getByTestId('row-name').evaluate(e => getComputedStyle(e).fontSize)).toBe('15px');
+    const prefs = (density: string) => page.evaluate(d => {
+      localStorage.setItem('deliordernyc_sys_prefs', JSON.stringify({ favorites: [], recent: [], lastSupplier: 'sup6', mode: 'order', density: d }));
+    }, density);
+    await prefs('compact');
+    await page.reload();
+    expect((await row(page, 'Caution Extreme Fruit Punch').locator('.row-thumb').boundingBox())!.width).toBeCloseTo(44, 0);
+    await prefs('pictures');
+    await page.reload();
+    const big = (await row(page, 'Caution Extreme Fruit Punch').getByTestId('product-thumb-placeholder').boundingBox())!;
+    expect(big.width).toBeGreaterThan(160);
     const firstTwo = await page.getByTestId('counter-row').evaluateAll(els => els.slice(0, 2).map(e => e.getBoundingClientRect().top));
     expect(Math.abs(firstTwo[0] - firstTwo[1])).toBeLessThan(2); // side by side
-    await page.evaluate(() => {
-      localStorage.setItem('deliordernyc_sys_prefs', JSON.stringify({ favorites: [], recent: [], lastSupplier: 'sup6', mode: 'order', density: 'compact' }));
-    });
-    await page.reload();
-    expect((await row(page, 'Caution Extreme Fruit Punch').locator('.row-thumb').boundingBox())!.width).toBeCloseTo(68, 0);
   });
 
   for (const width of [320, 360, 384, 412] as const) {

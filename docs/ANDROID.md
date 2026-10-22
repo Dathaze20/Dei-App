@@ -32,7 +32,14 @@ These are checked automatically by `npm run check:android` and by every CI and r
 ## Permissions
 - `INTERNET`: Check for updates and download an approved update.
 - `REQUEST_INSTALL_PACKAGES`: hand a downloaded update to Android's installer. Android still asks you to allow "Install unknown apps" for DeliOrderNYC once, and to confirm every installation.
-- `CAMERA`: the existing barcode scanner. It is only requested when the scanner opens.
+- `CAMERA`: the barcode scanner and, since v0.1.6, **Take photo** in Shelf photos. Android asks only the first time one of them is used. No new permission was added for v0.1.6.
+
+## Shelf photos from the camera (v0.1.6)
+- **How it works.** `DeliNativePlugin.takeShelfPhoto` opens the phone's camera app with `ACTION_IMAGE_CAPTURE`. The camera writes the photo to `files/shelf-inbox/` in the app's private storage, shared with the camera app only through the `FileProvider` path `shelf_inbox` (`res/xml/file_paths.xml`).
+- **Collecting.** Every time the page starts or comes back to the screen, it calls `takeShelfPhotos`. That shrinks each finished photo to 1280 px (upright, JPEG 80), and the page stores it in the shelf check it was taken for (IndexedDB). Only then does the page call `deleteShelfPhotos`.
+- **Why.** While the camera app is open, Android may close DeliOrderNYC (the activity, the WebView page or the whole process). Before v0.1.6 the photo was handed back through a callback that no longer existed, and was lost. Now the photo waits in the inbox until it is stored, and the app reopens the check it belongs to.
+- **Gallery.** **Choose photos** opens Android's photo picker (`chooseShelfPhotos`, no permission). The chosen photos are copied into the same inbox and collected the same way.
+- **Not in backups.** The inbox and shelf photos are not in backups (`allowBackup="false"`). Uninstalling deletes them.
 
 ## Check for updates
 **Menu → App updates → Check for updates.** The panel appears only in the Android app; the web version is unchanged.

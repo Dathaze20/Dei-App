@@ -1,14 +1,16 @@
 // components/counter/ShelfChecks.tsx
 //
-// Shelf photos: photograph a refrigerator, shelf or backroom during the shift, turn the photos into
-// verified counts when there is a moment (utils/shelfCheck.ts). Honest about what it does:
-//   - the camera (or the gallery) takes the photos; they stay on this phone (utils/shelfStore.ts);
+// Shelf photos (the Camera tab): photograph a refrigerator, shelf or backroom during the shift, turn
+// the photos into verified counts when there is a moment (utils/shelfCheck.ts). Honest about it:
+//   - the camera (or the gallery) takes the photos; they stay on this phone (utils/shelfStore.ts).
+//     On Android the camera (and the photo picker) write into a private inbox that survives
+//     Android closing the app meanwhile (utils/shelfCamera.ts); the photo then shows in the same check;
 //   - products are added by the person, or proposed from a barcode read in a photo (offline);
 //   - there is no automatic recognition of packaging or counting yet, and the screen says so;
 //   - "visible in photos" and "total on shelf" are separate; only a confirmed total is saved, as a
 //     verified count, after one confirmation for the whole check, with Undo right after.
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import useInventory from '../../hooks/useInventory';
 import { useDevicePrefs } from '../../hooks/useDevicePrefs';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -23,7 +25,9 @@ import ConfirmSheet from '../ui/ConfirmSheet';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
 import { useToast } from '../ui/Toast';
-import { CameraIcon, ChevronRightIcon, PhotoIcon, PlusIcon, TrashIcon, XIcon } from '../shared/icons';
+import { CameraIcon, ChevronRightIcon, InformationCircleIcon, PhotoIcon, PlusIcon, TrashIcon, XIcon } from '../shared/icons';
+import { PICKUP_EVENT, Pickup, captureShelfPhoto } from '../../utils/shelfCamera';
+import { cameraErrorKey, nativeShelfCamera, pickupNote, shelfPhotoStore } from './shelfCameraApp';
 import ProductPicker from './ProductPicker';
 
 const ShelfImage: React.FC<{ id: string; className: string; alt?: string }> = ({ id, className, alt = '' }) => {
@@ -38,6 +42,42 @@ const ShelfImage: React.FC<{ id: string; className: string; alt?: string }> = ({
   return src ? <img src={src} alt={alt} className={`${className} object-cover`} decoding="async" /> : <div className={`${className} bg-slate-200 dark:bg-slate-700`} />;
 };
 
+/** The long explanations, behind one button so the photos keep the screen. */
+const HelpButton: React.FC = () => {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className={ui.iconButton} onClick={() => setOpen(true)} aria-label={t('shelfHelpButton')} data-testid="shelf-help">
+        <InformationCircleIcon className="h-6 w-6" />
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title={t('shelfHelpButton')} testId="shelf-help-sheet">
+        <div className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
+          <p>{t('shelfCheckHelp')}</p>
+          <p>{t('shelfNoRecognition')}</p>
+          <p>{t('shelfRetention')}</p>
+        </div>
+      </Sheet>
+    </>
+  );
+};
+
+/** Browser photos (file input): made smaller and stored, then added to the check. */
+const addFiles = async (check: ShelfCheck, files: File[]): Promise<{ check: ShelfCheck; failed: boolean }> => {
+  let next = check;
+  let failed = false;
+  for (const file of files) {
+    if (next.imageIds.length >= MAX_PHOTOS_PER_CHECK) break;
+    try {
+      next = withPhoto(next, await putShelfImage(await resizeShelfPhoto(file)));
+    } catch {
+      failed = true;
+    }
+  }
+  await putCheck(next);
+  return { check: next, failed };
+};
+
 const numberValue = (text: string): number | null => (/^\d+$/.test(text.trim()) ? Number(text.trim()) : null);
 
 const ShelfChecks: React.FC = () => {
@@ -48,48 +88,95 @@ const ShelfChecks: React.FC = () => {
 const CheckList: React.FC = () => {
   const { t, language } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [prefs] = useDevicePrefs();
   const [checks, setChecks] = useState<ShelfCheck[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const native = nativeShelfCamera();
 
-  useEffect(() => {
+  const load = useCallback(() => {
     purgeExpired()
       .catch(() => 0)
       .then(listChecks)
       .then(setChecks)
-      .catch(() => setFailed(true));
-  }, []);
+      .catch(() => setFailed(t('photosUnavailable')));
+  }, [t]);
+  useEffect(load, [load]);
+  useEffect(() => {
+    window.addEventListener(PICKUP_EVENT, load);
+    return () => window.removeEventListener(PICKUP_EVENT, load);
+  }, [load]);
 
-  const start = async () => {
+  const create = async () => {
     const check = newShelfCheck(prefs.lastSupplier || null);
+    await putCheck(check);
+    return check;
+  };
+
+  // Take photo: on Android a new check opens and the camera starts there; in a browser the camera
+  // input opens straight away (it needs this tap) and the check is made when a photo arrives.
+  const takePhoto = async (source: 'camera' | 'gallery' = 'camera') => {
+    if (!native) return (source === 'gallery' ? gallery : camera).current?.click();
     try {
-      await putCheck(check);
-      navigate(`/counter/shelf/${check.id}`);
+      const check = await create();
+      navigate(`/counter/shelf/${check.id}`, { state: { [source]: true } });
     } catch {
-      setFailed(true);
+      setFailed(t('photosUnavailable'));
     }
   };
+
+  const fromFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(event.target.files ?? [])];
+    event.target.value = '';
+    if (!files.length) return;
+    try {
+      const { check, failed: some } = await addFiles(await create(), files);
+      navigate(`/counter/shelf/${check.id}`, { state: some ? { message: 'photoFailed' } : null });
+    } catch {
+      setFailed(t('photosUnavailable'));
+    }
+  };
+
+  // "Count with photos" on the Counter screen starts the camera at once on Android.
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || !native || !(location.state as { start?: boolean } | null)?.start) return;
+    started.current = true;
+    navigate(location.pathname, { replace: true, state: null });
+    void takePhoto();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const drafts = checks?.filter(c => c.state === 'draft') ?? [];
   return (
     <div className="space-y-3" data-testid="shelf-checks">
-      <section className={`${ui.card} space-y-2 p-3`}>
-        <h1 className="text-lg font-extrabold leading-tight">{t('shelfCheck')}</h1>
-        <p className={ui.muted}>{t('shelfCheckHelp')}</p>
-        <button type="button" className={`${ui.primary} w-full`} onClick={start} data-testid="new-shelf-check">
-          <CameraIcon className="h-5 w-5" /> {t('newShelfCheck')}
+      <div className="flex items-center gap-2">
+        <h1 className="min-w-0 flex-1 text-lg font-extrabold leading-tight">{t('shelfCheck')}</h1>
+        <HelpButton />
+      </div>
+      <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
+        <button type="button" className={`${ui.primary} min-h-14`} onClick={() => takePhoto('camera')} data-testid="new-shelf-check">
+          <CameraIcon className="h-6 w-6" /> {t('shelfNewWithPhoto')}
         </button>
-        <p className="text-xs text-slate-500 dark:text-slate-400">{t('shelfRetention')}</p>
-      </section>
-      {failed && <p role="alert" className={ui.error}>{t('photosUnavailable')}</p>}
-      <section className={`${ui.card} p-3`}>
-        <h2 className={`${ui.eyebrow} mb-1`}>{t('shelfDrafts')}</h2>
+        <button type="button" className={`${ui.secondary} min-h-14`} onClick={() => takePhoto('gallery')} data-testid="new-shelf-gallery">
+          <PhotoIcon className="h-6 w-6" /> {t('shelfNewWithGallery')}
+        </button>
+      </div>
+      <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" onChange={fromFiles} data-testid="new-shelf-camera-input" />
+      <input ref={gallery} type="file" accept="image/*" multiple className="hidden" onChange={fromFiles} data-testid="new-shelf-gallery-input" />
+      {failed && <p role="alert" className={ui.error}>{failed}</p>}
+      <section className={`${ui.card} p-3`} data-testid="shelf-unfinished">
+        <h2 className={`${ui.eyebrow} mb-1`}>
+          {t('shelfDrafts')} {drafts.length > 0 && <span className="ms-1 rounded-full bg-teal-500 px-1.5 text-xs font-bold text-white">{drafts.length}</span>}
+        </h2>
         {checks && drafts.length === 0 && <p className={ui.muted}>{t('shelfNoDrafts')}</p>}
         <ul className="divide-y divide-slate-100 dark:divide-white/5">
           {drafts.map(check => (
             <li key={check.id}>
-              <button type="button" className="flex min-h-14 w-full items-center gap-3 py-1.5 text-start" onClick={() => navigate(`/counter/shelf/${check.id}`)} data-testid="shelf-draft">
-                {check.imageIds[0] ? <ShelfImage id={check.imageIds[0]} className="h-12 w-12 rounded-lg" /> : <span className="h-12 w-12 rounded-lg bg-slate-200 dark:bg-slate-700" />}
+              <button type="button" className="flex min-h-16 w-full items-center gap-3 py-1.5 text-start" onClick={() => navigate(`/counter/shelf/${check.id}`)} data-testid="shelf-draft">
+                {check.imageIds[0] ? <ShelfImage id={check.imageIds[0]} className="h-14 w-14 rounded-lg" /> : <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-slate-200 text-slate-400 dark:bg-slate-700"><CameraIcon className="h-6 w-6" /></span>}
                 <span className="min-w-0 flex-1">
                   <span className="block font-semibold">{formatCountDate(check.createdAt, language, true)}</span>
                   <span className="block text-xs text-slate-500 dark:text-slate-400">
@@ -120,10 +207,40 @@ const CheckView: React.FC<{ id: string }> = ({ id }) => {
   const [confirm, setConfirm] = useState<'save' | 'discard' | null>(null);
   const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
+  const location = useLocation();
+  const native = nativeShelfCamera();
 
+  const reload = useCallback(
+    () => getCheck(id).then(found => (found ? setCheck(found) : setMissing(true))).catch(() => setMissing(true)),
+    [id],
+  );
   useEffect(() => {
-    getCheck(id).then(found => (found ? setCheck(found) : setMissing(true))).catch(() => setMissing(true));
-  }, [id]);
+    void reload();
+  }, [reload]);
+  // Photos stored from the camera inbox (also after Android reopened the app) show at once.
+  useEffect(() => {
+    const onPickup = (event: Event) => {
+      const pickup = (event as CustomEvent<Pickup>).detail;
+      if (pickup.checkId !== id) return;
+      void reload();
+      setMessage(pickupNote(pickup, t) || null);
+    };
+    window.addEventListener(PICKUP_EVENT, onPickup);
+    return () => window.removeEventListener(PICKUP_EVENT, onPickup);
+  }, [id, reload, t]);
+  // Opened by "Take photo" from the list, or with a note from the gallery.
+  const opened = useRef(false);
+  useEffect(() => {
+    const state = location.state as { camera?: boolean; gallery?: boolean; message?: 'photoFailed'; note?: string } | null;
+    if (opened.current || !check || !state) return;
+    opened.current = true;
+    navigate(location.pathname, { replace: true, state: null });
+    if (state.message) setMessage(t(state.message));
+    if (state.note) setMessage(state.note);
+    if (state.camera) void takePhoto('camera');
+    if (state.gallery) void takePhoto('gallery');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [check, location.state]);
 
   // Every change is saved straight away, so a check survives the phone being put down.
   const update = (next: ShelfCheck) => {
@@ -140,16 +257,29 @@ const CheckView: React.FC<{ id: string }> = ({ id }) => {
     if (!files.length) return;
     setBusy(true);
     setMessage(null);
-    let next = check;
-    for (const file of files) {
-      if (next.imageIds.length >= MAX_PHOTOS_PER_CHECK) break;
-      try {
-        next = withPhoto(next, await putShelfImage(await resizeShelfPhoto(file)));
-      } catch {
-        setMessage(t('photoFailed'));
-      }
+    try {
+      const result = await addFiles(check, files);
+      setCheck(result.check);
+      setMessage(result.failed ? t('photoFailed') : files.length > 1 ? t('shelfPhotosSaved', { count: files.length }) : t('shelfPhotoSaved'));
+    } catch {
+      setMessage(t('cameraNotStored'));
     }
-    update(next);
+    setBusy(false);
+  };
+
+  // Android: the native camera writes into the inbox; the photo is stored and announced
+  // (PICKUP_EVENT), which reloads this check. In a browser: the camera file input.
+  const takePhoto = async (source: 'camera' | 'gallery' = 'camera') => {
+    if (!native) return (source === 'gallery' ? gallery : camera).current?.click();
+    const current = await getCheck(id).catch(() => null);
+    if (!current) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await captureShelfPhoto(native, shelfPhotoStore, current, source);
+    } catch (error) {
+      setMessage(t(cameraErrorKey(error)));
+    }
     setBusy(false);
   };
 
@@ -183,6 +313,7 @@ const CheckView: React.FC<{ id: string }> = ({ id }) => {
   };
 
   const ready = confirmableItems(check);
+  const full = check.imageIds.length >= MAX_PHOTOS_PER_CHECK;
   const save = () => {
     setConfirm(null);
     const saved: { productId: string; units: number; countedAt: string }[] = [];
@@ -211,32 +342,47 @@ const CheckView: React.FC<{ id: string }> = ({ id }) => {
   return (
     <div className="space-y-3 pb-24" data-testid="shelf-check">
       <section className={`${ui.card} space-y-2 p-3`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="min-w-0 flex-1 text-lg font-extrabold leading-tight">{t('shelfCheck')}</h1>
-          <span className={ui.muted}>{t('shelfPhotosCount', { count: check.imageIds.length })}</span>
+        <div className="flex items-center gap-2">
+          <h1 className="min-w-0 flex-1 font-extrabold leading-tight">
+            {t('shelfCheck')} <span className="font-normal text-slate-500 dark:text-slate-400">· {formatCountDate(check.createdAt, language, true)}</span>
+          </h1>
+          <span className={`${ui.muted} whitespace-nowrap`}>{t('shelfPhotosCount', { count: check.imageIds.length })}</span>
+          <HelpButton />
         </div>
+        {/* Take and Choose first, then the photos (tap one to see it large). */}
         <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1" data-testid="shelf-photos">
+          <button
+            type="button"
+            className="flex h-24 w-24 flex-shrink-0 flex-col items-center justify-center gap-1 rounded-xl bg-cyan-600 px-1 text-center text-xs font-bold leading-tight text-white disabled:opacity-50 dark:bg-cyan-400 dark:text-slate-950"
+            disabled={busy || full}
+            onClick={() => takePhoto('camera')}
+            data-testid="shelf-take-photo"
+          >
+            <CameraIcon className="h-7 w-7" /> {t('takePhoto')}
+          </button>
+          <button
+            type="button"
+            className="flex h-24 w-24 flex-shrink-0 flex-col items-center justify-center gap-1 rounded-xl bg-white px-1 text-center text-xs font-bold leading-tight text-cyan-700 ring-1 ring-slate-200 disabled:opacity-50 dark:bg-slate-800 dark:text-cyan-300 dark:ring-white/10"
+            disabled={busy || full}
+            onClick={() => takePhoto('gallery')}
+            data-testid="shelf-choose-photo"
+          >
+            <PhotoIcon className="h-7 w-7" /> {t('choosePhoto')}
+          </button>
           {check.imageIds.map(imageId => (
-            <button key={imageId} type="button" onClick={() => setViewing(imageId)} className="flex-shrink-0" aria-label={t('viewShort')}>
+            <button key={imageId} type="button" onClick={() => setViewing(imageId)} className="flex-shrink-0" aria-label={t('viewShort')} data-testid="shelf-photo">
               <ShelfImage id={imageId} className="h-24 w-24 rounded-xl" />
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" className={ui.primary} disabled={busy || check.imageIds.length >= MAX_PHOTOS_PER_CHECK} onClick={() => camera.current?.click()}>
-            <CameraIcon className="h-5 w-5" /> {t('takePhoto')}
-          </button>
-          <button type="button" className={ui.secondary} disabled={busy || check.imageIds.length >= MAX_PHOTOS_PER_CHECK} onClick={() => gallery.current?.click()}>
-            <PhotoIcon className="h-5 w-5" /> {t('choosePhoto')}
-          </button>
-        </div>
-        <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" onChange={addPhotos} />
+        <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" onChange={addPhotos} data-testid="shelf-camera-input" />
         <input ref={gallery} type="file" accept="image/*" multiple className="hidden" onChange={addPhotos} data-testid="shelf-photo-input" />
-        <p className="text-xs text-slate-500 dark:text-slate-400">{t('shelfNoRecognition')}</p>
-        {message && <p role="status" className="text-sm text-slate-700 dark:text-slate-200" data-testid="shelf-message">{message}</p>}
+        {check.imageIds.length === 0 && !message && <p className={ui.muted}>{t('shelfEmptyHint')}</p>}
+        {message && <p role="status" className="text-sm font-semibold text-slate-700 dark:text-slate-200" data-testid="shelf-message">{message}</p>}
       </section>
 
       <section className={`${ui.card} p-3`}>
+        {check.items.length === 0 && <p className={`${ui.muted} pb-1`}>{t('shelfNextStep')}</p>}
         <ul className="divide-y divide-slate-100 dark:divide-white/5" data-testid="shelf-items">
           {check.items.map(item => {
             const product = item.productId ? getProductById(item.productId) : undefined;

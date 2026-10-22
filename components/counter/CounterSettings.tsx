@@ -84,6 +84,7 @@ const CounterSettings: React.FC = () => {
               options={[
                 { value: 'comfortable', label: t('densityComfortable') },
                 { value: 'compact', label: t('densityCompact') },
+                { value: 'pictures', label: t('densityPictures') },
               ]}
             />
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('densityHelp')}</p>

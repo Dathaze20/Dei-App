@@ -105,7 +105,7 @@ export const keypadSave = async (page: Page, digits: string) => {
 
 /** Chooses a supplier through "All suppliers" (C2.3 supplier list). */
 export const pickSupplier = async (page: Page, name: string | RegExp) => {
-  await page.getByTestId('all-suppliers').click();
+  await page.getByTestId('current-supplier').click();
   await page.getByTestId('supplier-grid-all').getByTestId('supplier-tile').filter({ hasText: name }).first().locator('button').first().click();
   await expect(page.getByTestId('supplier-grid')).toHaveCount(0);
 };

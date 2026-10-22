@@ -10,6 +10,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { Product } from '../../types';
 import { lineQuantity } from '../../utils/supplierDraft';
 import { productSignals } from '../../utils/productSignals';
+import { imageSource } from '../../utils/productImage';
 import ProductThumb from '../ProductThumb';
 import StockLabel from '../StockLabel';
 import Sheet from '../ui/Sheet';
@@ -79,22 +80,24 @@ const ProductSheet: React.FC<ProductSheetProps> = ({ product, onClose, onCount }
       }
     >
       <div className="space-y-4">
-        <div className="flex gap-4">
-          <div className="flex flex-shrink-0 flex-col items-center gap-1">
-            <ProductThumb product={product} className="h-24 w-24 rounded-2xl" />
-            <button type="button" className={`${ui.ghost} !px-2 text-sm`} onClick={() => setPhotoWalk(true)} data-testid="sheet-add-photo">
-              <CameraIcon className="h-5 w-5" /> {t('addPhoto')}
-            </button>
-          </div>
-          <dl className="min-w-0 flex-1 space-y-1 text-sm">
-            {facts.map(([label, value]) => (
-              <div key={label} className="flex flex-wrap gap-x-2">
-                <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
-                <dd dir="auto" className="min-w-0 break-words font-semibold">{value}</dd>
-              </div>
-            ))}
-          </dl>
+        {/* The large preview: tapping a row's picture opens this, to tell similar packs apart. */}
+        <div className="relative">
+          <ProductThumb product={product} className="mx-auto h-[min(14rem,45vh)] w-full max-w-sm rounded-2xl" />
+          <button type="button" className={`${ui.ghost} absolute bottom-1 end-1 !min-h-11 bg-white/90 !px-2 text-sm shadow dark:bg-slate-900/90`} onClick={() => setPhotoWalk(true)} data-testid="sheet-add-photo">
+            <CameraIcon className="h-5 w-5" /> {t('addPhoto')}
+          </button>
         </div>
+        {!['photo', 'remote'].includes(imageSource(product.imageUrl).kind) && (
+          <p className="text-center text-xs text-slate-500 dark:text-slate-400" data-testid="label-tile-note">{t('labelTileNote')}</p>
+        )}
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm" data-testid="product-facts">
+          {facts.map(([label, value]) => (
+            <React.Fragment key={label}>
+              <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+              <dd dir="auto" className="min-w-0 break-words font-semibold">{value}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
 
         {workflow.countStock && (
           <div className={`${ui.card} flex flex-wrap items-center gap-3 p-3`}>

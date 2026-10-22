@@ -67,7 +67,7 @@ test.describe('one interface: upgrading from v0.1.1 and older addresses', () => 
 test.describe('supplier selector: no sideways scrolling, favourites, recent, remembered', () => {
   test('every supplier is in one list; picking one closes it; the choice survives a restart', async ({ page }) => {
     await seed(page, REAL);
-    await page.getByTestId('all-suppliers').click();
+    await page.getByTestId('current-supplier').click();
     await expect(page.getByTestId('supplier-grid-all').getByTestId('supplier-tile')).toHaveCount(JSON.parse(REAL.inventory_suppliers).length);
     await page.getByRole('searchbox', { name: 'Search suppliers' }).fill('red');
     await expect(page.getByTestId('supplier-grid-all').getByTestId('supplier-tile')).toHaveText(['Red Bull']);
@@ -76,16 +76,16 @@ test.describe('supplier selector: no sideways scrolling, favourites, recent, rem
     await expect(page.getByTestId('current-supplier')).toContainText('Red Bull');
     await page.reload();
     await expect(page.getByTestId('current-supplier')).toContainText('Red Bull');
-    // The previous supplier is one tap away.
-    await page.getByTestId('supplier-bar').getByRole('button', { name: /^Arizona/ }).click();
+    // The previous supplier is first under Recent in the supplier list (v0.1.6: one compact button).
+    await page.getByTestId('current-supplier').click();
+    await page.getByTestId('supplier-grid-recent').getByRole('button', { name: /^Arizona/ }).click();
     await expect(page.getByTestId('current-supplier')).toContainText('Arizona');
   });
 
-  test('no pins or stars (v0.1.5): the bar shows recent suppliers; an old saved pin does nothing and is kept', async ({ page }) => {
+  test('no pins or stars: the supplier list shows recent suppliers first; an old saved pin does nothing and is kept', async ({ page }) => {
     await seed(page, { ...REAL, deliordernyc_sys_prefs: JSON.stringify({ favorites: ['sup1'], recent: ['sup4'], lastSupplier: 'sup6', mode: 'order', density: 'comfortable' }) });
-    await expect(page.getByTestId('quick-supplier').first()).toContainText('Frito-Lay');
-    await expect(page.getByTestId('quick-supplier').filter({ hasText: "Boar's Head" })).toHaveCount(0);
-    await page.getByTestId('all-suppliers').click();
+    await page.getByTestId('current-supplier').click();
+    await expect(page.getByTestId('supplier-grid-recent').getByTestId('supplier-tile')).toHaveText(['Frito-Lay']);
     await expect(page.getByRole('button', { name: /^(Pin|Unpin) / })).toHaveCount(0);
     await expect(page.getByTestId('supplier-grid').getByRole('heading', { name: 'Pinned' })).toHaveCount(0);
     expect(JSON.parse((await page.evaluate(() => localStorage.getItem('deliordernyc_sys_prefs')))!).favorites).toEqual(['sup1']);
@@ -132,18 +132,23 @@ test.describe('supplier selector: no sideways scrolling, favourites, recent, rem
 });
 
 test.describe('one-tap ordering on the one saved order', () => {
-  test('+ adds a case line, + again adds one more, − twice removes it; Orders shows the badge', async ({ page }) => {
+  test('+ adds a case line (✓ 1), the adjuster adds one more, − twice removes it; Orders shows the badge', async ({ page }) => {
     await seed(page, { ...REAL, ...COUNTER });
     const lowCarb = row(page, 'Caution Low-Carb');
     await lowCarb.getByRole('button', { name: /^Add one/ }).click();
     expect((await order(page)).find(i => i.productId === 'az_rx_lowcarb_slim11_5')).toEqual({ productId: 'az_rx_lowcarb_slim11_5', quantity: 1 });
-    await lowCarb.getByRole('button', { name: /^Add one/ }).click();
+    await expect(lowCarb.getByTestId('row-selected')).toHaveText('1');
+    await lowCarb.getByTestId('row-selected').click();
+    const adjuster = page.getByTestId('quantity-sheet');
+    await adjuster.getByTestId('quantity-plus').click();
+    await expect(adjuster.getByTestId('quantity-value')).toHaveText('2');
     expect((await order(page)).find(i => i.productId === 'az_rx_lowcarb_slim11_5')?.quantity).toBe(2);
     await expect(page.getByTestId('counter-nav').getByRole('link', { name: /Orders/ })).toContainText('3');
     await expect(page.getByTestId('current-supplier')).toContainText('3');
 
-    await lowCarb.getByRole('button', { name: /^Remove one/ }).click();
-    await lowCarb.getByRole('button', { name: /^Remove one/ }).click();
+    await adjuster.getByTestId('quantity-minus').click();
+    await adjuster.getByTestId('quantity-minus').click();
+    await expect(adjuster).toHaveCount(0);
     expect((await order(page)).some(i => i.productId === 'az_rx_lowcarb_slim11_5')).toBe(false);
     expect(await order(page)).toEqual(JSON.parse(REAL.inventory_currentOrder).items); // the Arizona order is untouched
 
@@ -191,7 +196,7 @@ test.describe('one-tap ordering on the one saved order', () => {
     await expect(page.getByTestId('counter-row')).toHaveCount(1);
     await expect(page.getByTestId('product-section').locator('h2')).toHaveText([/^Boar's Head/]);
     await page.getByRole('button', { name: 'Close search' }).click();
-    await expect(page.getByTestId('supplier-bar')).toBeVisible();
+    await expect(page.getByTestId('counter-bar')).toBeVisible();
     await expect(page.getByRole('searchbox')).toHaveCount(0);
   });
 });
@@ -250,7 +255,7 @@ test.describe('Counter phone layout', () => {
         expect(await overflowing(page), 'menu').toEqual([]);
         await page.keyboard.press('Escape');
         await expect(page.getByTestId('counter-drawer')).toHaveCount(0);
-        await page.getByTestId('all-suppliers').click();
+        await page.getByTestId('current-supplier').click();
         await page.waitForTimeout(400);
         expect(await overflowing(page), 'all suppliers').toEqual([]);
         // Supplier names are never cut: each tile's name fits on its lines.
@@ -277,7 +282,7 @@ test.describe('Counter phone layout', () => {
     const phone = await openPhone(browser, { width: 360, storage: COUNTER }, '/counter');
     const { page } = phone;
     await expectTargets(page, '[data-testid="counter-screen"] header button');
-    await expectTargets(page, '[data-testid="supplier-bar"] button');
+    await expectTargets(page, '[data-testid="counter-bar"] button');
     await expectTargets(page, '[data-testid="filter-pill"]');
     await expectTargets(page, '[data-testid="counter-row"] button');
     await expectTargets(page, '[data-testid="counter-nav"] a, [data-testid="counter-nav"] button');

@@ -51,8 +51,8 @@ const row = (page: Page, text: string) => page.getByTestId('counter-row').filter
 
 /** Opens a supplier: the C2.3 supplier list when there is one, else the C2.2 capsules. */
 const openSupplier = async (page: Page, name: string) => {
-  if (await page.getByTestId('all-suppliers').count()) {
-    await page.getByTestId('all-suppliers').click();
+  if (await page.getByTestId('current-supplier').count()) {
+    await page.getByTestId('current-supplier').click();
     await page.getByTestId('supplier-grid-all').getByRole('button', { name: new RegExp(`^${name}`) }).click();
   } else {
     await page.getByTestId('counter-capsules').getByRole('button', { name: new RegExp(`^${name}`) }).click();

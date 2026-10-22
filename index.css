@@ -114,36 +114,22 @@ html.counter-ui.dark .shadow-xl {
   }
 }
 
-/* Product pictures in rows: about 76-84px in Comfortable (smaller only on the narrowest phones),
-   in px so larger text grows the words, not the picture. */
+/* Product pictures in rows (components/counter/CounterRow.tsx): 52px, about 48px on the narrowest
+   phones, in px so larger text grows the words, not the picture. */
 .row-thumb {
-  width: clamp(64px, 20.5vw, 84px);
-  height: clamp(64px, 20.5vw, 84px);
+  width: clamp(48px, 13vw, 52px);
+  height: clamp(48px, 13vw, 52px);
 }
 
-/* Display density (Settings › Appearance). Compact fits more products on the screen by using
-   less space around each row and a smaller picture (about 60-68px); text size and 44px buttons
-   are unchanged. */
+/* Display density (Settings › Appearance). Compact uses less space around each row and a 44px
+   picture; text size and 44px buttons are unchanged. "Large pictures" uses the cards below. */
 html[data-density='compact'] .row-pad {
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
 }
 html[data-density='compact'] .row-thumb {
-  width: clamp(56px, 16.5vw, 68px);
-  height: clamp(56px, 16.5vw, 68px);
-}
-html[data-density='compact'] [data-testid='counter-group'] > button {
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
-}
-html[data-density='compact'] .row-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: 0.5rem;
-}
-html[data-density='compact'] .row-meta > * {
-  margin-top: 0;
+  width: 44px;
+  height: 44px;
 }
 
 /* Pinned and recent suppliers next to the current one: when there is not room for even one
