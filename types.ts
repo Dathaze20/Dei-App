@@ -18,6 +18,11 @@ export interface Product {
   reorderThresholdUnits: number;
   currentStockUnits: number;
   upc?: string;
+  /**
+   * Added in v0.1.7: other names people use for this product ("AZ green tea big can"). Only for
+   * finding it; never shown as its name. Older versions keep it as an unknown field.
+   */
+  aliases?: string[];
 }
 
 export interface OrderItem {

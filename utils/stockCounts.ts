@@ -39,9 +39,22 @@ export interface StockCount {
 }
 
 export interface ProductCounts {
-  /** Newest first. At most MAX_COUNTS_PER_PRODUCT. */
+  /** Newest first. At most MAX_COUNTS_PER_PRODUCT. Empty after "Clear count": not counted. */
+  counts: StockCount[];
+  /**
+   * Added in v0.1.7. Counts a person cleared ("Clear count"), newest first, kept for the record
+   * only: they are never shown as stock again, and a later count does not bring them back.
+   * Older app versions see an empty `counts` list, which they also read as "not counted".
+   */
+  cleared?: ClearedCounts[];
+}
+
+export interface ClearedCounts {
+  clearedAt: string;
   counts: StockCount[];
 }
+
+export const MAX_CLEARED_PER_PRODUCT = 3;
 
 export interface RetiredCounts {
   productId: string;
@@ -94,9 +107,36 @@ export const withoutCount = (doc: StockCountsDoc, productId: string, countedAt: 
   if (counts[0]?.countedAt !== countedAt) return doc;
   const rest = counts.slice(1);
   const products = { ...doc.products };
-  if (rest.length) products[productId] = { ...products[productId], counts: rest };
+  // Keep the entry while it still holds cleared counts (the record of a "Clear count").
+  if (rest.length || products[productId].cleared?.length) products[productId] = { ...products[productId], counts: rest };
   else delete products[productId];
   return { ...doc, products };
+};
+
+/**
+ * "Clear count": the product goes back to "not counted" (unknown, which is not 0). Its counts
+ * move to `cleared` for the record, so an older count can never become current stock again.
+ * Returns the same document when there is nothing to clear.
+ */
+export const withCountsCleared = (doc: StockCountsDoc, productId: string, clearedAt: string): StockCountsDoc => {
+  const entry = doc.products[productId];
+  if (!entry || entry.counts.length === 0) return doc;
+  const cleared = [{ clearedAt, counts: entry.counts.slice(0, MAX_COUNTS_PER_PRODUCT) }, ...(entry.cleared ?? [])].slice(0, MAX_CLEARED_PER_PRODUCT);
+  return { ...doc, products: { ...doc.products, [productId]: { ...entry, counts: [], cleared } } };
+};
+
+/**
+ * Undo of "Clear count" right after it: only while the product is still not counted and the
+ * newest cleared record is that one. Otherwise the same document is returned.
+ */
+export const withClearUndone = (doc: StockCountsDoc, productId: string, clearedAt: string): StockCountsDoc => {
+  const entry = doc.products[productId];
+  const [latest, ...older] = entry?.cleared ?? [];
+  if (!entry || entry.counts.length > 0 || latest?.clearedAt !== clearedAt) return doc;
+  const restored: ProductCounts = { ...entry, counts: latest.counts };
+  if (older.length) restored.cleared = older;
+  else delete restored.cleared;
+  return { ...doc, products: { ...doc.products, [productId]: restored } };
 };
 
 /**
@@ -187,7 +227,16 @@ export const validateStockCountsValue = (value: unknown): string[] => {
   for (const [productId, entry] of Object.entries(value.products)) {
     if (problems.length >= MAX_REPORTED) break;
     if (!isObject(entry)) problems.push(`Stock counts for "${productId}" are not a record.`);
-    else problems.push(...countProblems(`Product "${productId}"`, entry.counts));
+    else {
+      problems.push(...countProblems(`Product "${productId}"`, entry.counts));
+      if (entry.cleared !== undefined) {
+        if (!Array.isArray(entry.cleared)) problems.push(`Cleared counts for "${productId}" are not a list.`);
+        else entry.cleared.forEach((c, i) => {
+          if (!isObject(c) || typeof c.clearedAt !== 'string' || Number.isNaN(Date.parse(c.clearedAt))) problems.push(`Cleared counts #${i + 1} for "${productId}" have no valid time.`);
+          else problems.push(...countProblems(`Cleared "${productId}"`, c.counts));
+        });
+      }
+    }
   }
   if (value.retired !== undefined) {
     if (!Array.isArray(value.retired)) problems.push('The retired stock counts are not a list.');

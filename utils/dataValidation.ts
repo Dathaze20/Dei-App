@@ -9,6 +9,7 @@
 // "repaired" or partially loaded: the whole key is treated as unreadable and left untouched.
 
 import { KNOWN_STORAGE_KEYS } from './dataExport';
+import { STORE_PROFILE_KEY, validateStoreProfileValue } from './storeProfile';
 import { validateStockCountsValue } from './stockCounts';
 import { ORDER_HISTORY_KEY, validateOrderHistoryValue } from './orderHistory';
 
@@ -107,6 +108,9 @@ const JSON_VALIDATORS: Record<string, (value: unknown) => ValidationResult> = {
   // Added in v0.1.3 (utils/orderHistory.ts). Older backups do not have it; older app versions
   // keep and restore it as an unknown app key.
   [ORDER_HISTORY_KEY]: validateOrderHistory,
+  // Added in v0.1.7 (utils/storeProfile.ts). Older backups do not have it; older app versions
+  // keep and restore it as an unknown app key.
+  [STORE_PROFILE_KEY]: value => result(validateStoreProfileValue(value)),
 };
 
 /** True for keys whose stored text must be JSON of a specific shape. */

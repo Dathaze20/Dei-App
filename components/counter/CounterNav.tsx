@@ -1,6 +1,6 @@
 // components/counter/CounterNav.tsx
 //
-// Bottom navigation for one-handed use: Counter · Orders · Camera · Catalog. Camera opens the shelf
+// Bottom navigation for one-handed use: Counter · Orders · Catalog · Camera. Camera opens the shelf
 // photos (start a check or carry on with an unfinished one; the badge counts unfinished checks).
 // Settings, backup and help are in the menu (☰ in the header), so they are not repeated here. It
 // sits fully above the Android gesture bar and grows with larger text; labels never break inside
@@ -41,8 +41,9 @@ const CounterNav: React.FC = () => {
   const links = [
     { to: '/counter', end: true, label: t('navCounter'), Icon: StorefrontIcon, badge: 0, testId: 'nav-counter' },
     { to: '/counter/orders', end: false, label: t('navOrders'), Icon: ShoppingCartIcon, badge: currentOrder.items.length, testId: 'nav-orders' },
-    { to: '/counter/shelf', end: false, label: t('navCamera'), Icon: CameraIcon, badge: unfinished, testId: 'nav-camera' },
     { to: '/counter/catalog', end: false, label: t('navCatalog'), Icon: Squares2X2Icon, badge: 0, testId: 'nav-catalog' },
+    // Last, under the right thumb (v0.1.7, the owner's one-handed placement).
+    { to: '/counter/shelf', end: false, label: t('navCamera'), Icon: CameraIcon, badge: unfinished, testId: 'nav-camera' },
   ];
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white pb-safe px-safe dark:border-white/10 dark:bg-[#0b1120]" data-testid="counter-nav">

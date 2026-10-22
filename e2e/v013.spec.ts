@@ -16,7 +16,7 @@ test.describe('rows and navigation', () => {
   test('four tabs (Camera added in v0.1.6, no Menu tab), the menu stays in the header, and the modes read Order | Count', async ({ page }) => {
     await seed(page, REAL, '/counter');
     const nav = page.getByTestId('counter-nav');
-    await expect(nav.getByRole('link')).toHaveText([/^Counter$/, /^\d*Orders$/, /^\d*Camera$/, /^Catalog$/]);
+    await expect(nav.getByRole('link')).toHaveText([/^Counter$/, /^\d*Orders$/, /^Catalog$/, /^\d*Camera$/]);
     await expect(nav.getByRole('button')).toHaveCount(0);
     await expect(page.getByTestId('mode-order')).toHaveText('Order');
     await expect(page.getByTestId('mode-count')).toHaveText('Count');

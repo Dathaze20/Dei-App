@@ -33,6 +33,10 @@ import CounterNav from './CounterNav';
 import OrderHistory from './OrderHistory';
 import ShelfChecks from './ShelfChecks';
 import CounterTopBar from './CounterTopBar';
+import StoreOrdering from './StoreOrdering';
+import AssistantButton from '../assistant/AssistantButton';
+import AssistantSheet from '../assistant/AssistantSheet';
+import { StoreProfileProvider } from '../../contexts/StoreProfileContext';
 
 /** #/product/<id> from a shelf-tag QR code: open that product on Counter. */
 const ProductLink: React.FC = () => {
@@ -48,6 +52,7 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
   const toast = useToast();
   const [prefs, setPrefs] = useDevicePrefs();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   // A product to open, from a shelf-tag link.
@@ -152,7 +157,7 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
       // Counter must leave the app, even before the screen has finished drawing.
       const path = window.location.hash.replace(/^#/, '').replace(/\/$/, '');
       if (path === '/counter') return false;
-      const parent = path === '/counter/orders/history' ? '/counter/orders' : path.startsWith('/counter/shelf/') ? '/counter/shelf' : '/counter';
+      const parent = path === '/counter/orders/history' ? '/counter/orders' : path.startsWith('/counter/shelf/') ? '/counter/shelf' : path === '/counter/store' ? '/counter/settings' : '/counter';
       navigate(parent, { replace: true });
       return true;
     },
@@ -192,6 +197,7 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
           <Route path="/counter/shelf/:checkId" element={<ShelfChecks />} />
           <Route path="/counter/catalog" element={<CounterCatalog />} />
           <Route path="/counter/settings" element={<CounterSettings />} />
+          <Route path="/counter/store" element={<StoreOrdering />} />
           {/* Addresses from before C2.3 (Classic View) and shelf-tag QR codes. */}
           <Route path="/product/:productId" element={<ProductLink />} />
           <Route path="/order" element={<Navigate to="/counter/orders" replace />} />
@@ -199,6 +205,12 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
           <Route path="*" element={<Navigate to="/counter" replace />} />
         </Routes>
       </main>
+      {/* The assistant: everywhere except where it would cover camera controls or a form. */}
+      <AssistantButton
+        onOpen={() => setAssistantOpen(true)}
+        hidden={searchOpen || /^\/counter\/(shelf\/.+|settings|store)/.test(location.pathname)}
+      />
+      <AssistantSheet open={assistantOpen} onClose={() => setAssistantOpen(false)} currentSupplierId={prefs.lastSupplier || null} />
       <CounterNav />
       <CounterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
@@ -208,7 +220,9 @@ const Shell: React.FC<{ startupNotice: StartupNotice | null }> = ({ startupNotic
 const CounterShell: React.FC<{ startupNotice?: StartupNotice | null }> = ({ startupNotice = null }) => (
   <MotionConfig reducedMotion="user">
     <ToastProvider>
-      <Shell startupNotice={startupNotice} />
+      <StoreProfileProvider>
+        <Shell startupNotice={startupNotice} />
+      </StoreProfileProvider>
     </ToastProvider>
   </MotionConfig>
 );
