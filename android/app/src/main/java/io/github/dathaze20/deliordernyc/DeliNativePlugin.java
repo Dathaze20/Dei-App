@@ -17,6 +17,7 @@ import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
+import android.speech.RecognizerIntent;
 import android.provider.Settings;
 import android.util.Base64;
 import androidx.activity.result.ActivityResult;
@@ -57,7 +58,8 @@ import java.util.concurrent.Executors;
  * - save a backup file through Android's "Save to…" screen (WebView has no browser downloads);
  * - hand over a product id from a shelf-tag link (deliordernyc://product/<id>);
  * - take shelf photos with the camera into a private inbox that survives Android closing the app
- *   while the camera is open (see takeShelfPhoto).
+ *   while the camera is open (see takeShelfPhoto);
+ * - one spoken command for the assistant, through the phone's own speech screen (listenOnce).
  */
 @CapacitorPlugin(name = "DeliNative", permissions = { @Permission(alias = "camera", strings = { Manifest.permission.CAMERA }) })
 public class DeliNativePlugin extends Plugin {
@@ -598,6 +600,47 @@ public class DeliNativePlugin extends Plugin {
             for (int n; (n = in.read(buffer)) > 0; ) out.write(buffer, 0, n);
             return out.toByteArray();
         }
+    }
+
+    // --- One spoken command (v0.1.7) --------------------------------------------------------------
+    //
+    // Opens the phone's own speech screen (RecognizerIntent) once, when the person taps the
+    // microphone. That screen belongs to the phone's speech service, which holds the microphone
+    // permission; this app needs none, never records audio and only receives the text.
+
+    /** Whether the phone has a speech screen to open. */
+    @PluginMethod
+    public void speechAvailable(PluginCall call) {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        JSObject result = new JSObject();
+        result.put("available", intent.resolveActivity(getContext().getPackageManager()) != null);
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void listenOnce(PluginCall call) {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        String language = call.getString("language");
+        if (language != null && language.matches("[a-z]{2}(-[A-Z]{2})?")) intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, language);
+        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        String prompt = call.getString("prompt");
+        if (prompt != null && prompt.length() <= 120) intent.putExtra(RecognizerIntent.EXTRA_PROMPT, prompt);
+        try {
+            startActivityForResult(call, intent, "onSpeech");
+        } catch (ActivityNotFoundException e) {
+            call.reject("Speech is not available on this phone.", "no-speech");
+        }
+    }
+
+    @ActivityCallback
+    private void onSpeech(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject answer = new JSObject();
+        Intent data = result.getData();
+        java.util.ArrayList<String> texts = data == null ? null : data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+        answer.put("text", result.getResultCode() == Activity.RESULT_OK && texts != null && !texts.isEmpty() ? texts.get(0) : JSObject.NULL);
+        call.resolve(answer);
     }
 
     // --- Helpers --------------------------------------------------------------------------------

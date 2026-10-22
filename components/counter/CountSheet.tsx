@@ -15,6 +15,7 @@ import { countUnitKey } from '../../utils/countUnits';
 import { stockWarning } from '../../utils/stockCounts';
 import { formatCountDate } from '../StockLabel';
 import ProductThumb from '../ProductThumb';
+import ClearCountButton from './ClearCountButton';
 import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
 import { BackspaceIcon, MinusIcon, PlusIcon } from '../shared/icons';
@@ -180,6 +181,7 @@ const CountSheet: React.FC<CountSheetProps> = ({ productId, orderedIds, onClose,
       <div className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
           <div className="min-w-0">{lastCount}</div>
+          {product && <ClearCountButton product={product} onCleared={() => edit('')} />}
           {position >= 0 && <p className={`${ui.muted} whitespace-nowrap`}>{t('countPosition', { index: position + 1, total: orderedIds.length })}</p>}
         </div>
 

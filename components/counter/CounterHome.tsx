@@ -93,6 +93,13 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
   const barHidden = useHideOnScroll(!query.trim() && barPinned);
   const trayRef = useRef<HTMLDivElement>(null);
   const [trayHeight, setTrayHeight] = useState(64);
+  const showTrayRef = useRef(false);
+  // The assistant's button sits above the tray (components/assistant/AssistantButton.tsx).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--tray-h', showTrayRef.current ? `${trayHeight + 8}px` : '0px');
+    return () => root.style.setProperty('--tray-h', '0px');
+  });
   useEffect(() => {
     const tray = trayRef.current;
     if (!tray || typeof ResizeObserver === 'undefined') return;
@@ -199,6 +206,7 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
     [currentOrder.items, activeId, getProductById, getSupplierById, getWorkflow],
   );
   const showTray = !search && !!trayGroup && trayGroup.lines.length > 0;
+  showTrayRef.current = showTray;
   useEffect(() => {
     if (!showTray) setTrayOpen(false);
   }, [showTray]);
@@ -420,6 +428,8 @@ const CounterHome: React.FC<CounterHomeProps> = ({ query, supplierId, onSelectSu
 
       </div>
 
+      {/* Room for the assistant's button, so the last row's control can scroll clear of it. */}
+      <div className="h-16" aria-hidden="true" />
       {/* Room for the tray (its real height: it grows with the text), so the last row is never
           hidden behind it. */}
       {showTray && <div style={{ height: trayHeight + 8 }} aria-hidden="true" />}

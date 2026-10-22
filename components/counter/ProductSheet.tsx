@@ -17,6 +17,7 @@ import Sheet from '../ui/Sheet';
 import { ui } from '../ui/styles';
 import { CalculatorIcon, CameraIcon, MinusIcon, PencilIcon, PlusIcon } from '../shared/icons';
 import PhotoWalkSheet from './PhotoWalkSheet';
+import ClearCountButton from './ClearCountButton';
 
 interface ProductSheetProps {
   product: Product | null;
@@ -104,6 +105,7 @@ const ProductSheet: React.FC<ProductSheetProps> = ({ product, onClose, onCount }
             <div className="min-w-0 flex-1">
               <p className={ui.eyebrow}>{t('stockLabel')}</p>
               <StockLabel product={product} className="text-sm" />
+              <ClearCountButton product={product} className="-ms-2" />
             </div>
             <button type="button" className={ui.primary} onClick={() => onCount(product)} data-testid="open-count">
               <CalculatorIcon className="h-5 w-5" /> {t('countStock')}

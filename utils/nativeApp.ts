@@ -36,6 +36,9 @@ export interface DeliNativePlugin {
   chooseShelfPhotos(): Promise<{ taken: boolean }>;
   takeShelfPhotos(): Promise<{ photos: { name: string; dataUrl: string }[]; failed: number; capturing: boolean; cancelled?: boolean }>;
   deleteShelfPhotos(options: { names: string[] }): Promise<void>;
+  /** Added in v0.1.7: one spoken command through the phone's own speech screen. */
+  speechAvailable(): Promise<{ available: boolean }>;
+  listenOnce(options: { language?: string; prompt?: string }): Promise<{ text: string | null }>;
   addListener(event: 'updateProgress', listener: (progress: { received: number; total: number }) => void): Promise<PluginListenerHandle>;
 }
 

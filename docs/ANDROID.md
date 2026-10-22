@@ -34,6 +34,12 @@ These are checked automatically by `npm run check:android` and by every CI and r
 - `REQUEST_INSTALL_PACKAGES`: hand a downloaded update to Android's installer. Android still asks you to allow "Install unknown apps" for DeliOrderNYC once, and to confirm every installation.
 - `CAMERA`: the barcode scanner and, since v0.1.6, **Take photo** in Shelf photos. Android asks only the first time one of them is used. No new permission was added for v0.1.6.
 
+## Speaking to the assistant (v0.1.7)
+- **One tap, one command.** The microphone button opens the phone's own speech screen (`RecognizerIntent`, `DeliNativePlugin.listenOnce`). It is never always-listening.
+- **No permission, no recording.** The speech screen belongs to the phone's speech service, which holds the microphone permission; DeliOrderNYC asks for none, records nothing and receives only the recognised text. Google's speech service may process the audio on its servers or on the phone; that is the phone's service, not this app.
+- **Package visibility.** The manifest's `<queries>` entry for `android.speech.action.RECOGNIZE_SPEECH` lets the app see whether a speech screen exists. It is not a permission.
+- **No speech screen.** If the phone has none, the button says so and typing works the same.
+
 ## Shelf photos from the camera (v0.1.6)
 - **How it works.** `DeliNativePlugin.takeShelfPhoto` opens the phone's camera app with `ACTION_IMAGE_CAPTURE`. The camera writes the photo to `files/shelf-inbox/` in the app's private storage, shared with the camera app only through the `FileProvider` path `shelf_inbox` (`res/xml/file_paths.xml`).
 - **Collecting.** Every time the page starts or comes back to the screen, it calls `takeShelfPhotos`. That shrinks each finished photo to 1280 px (upright, JPEG 80), and the page stores it in the shelf check it was taken for (IndexedDB). Only then does the page call `deleteShelfPhotos`.

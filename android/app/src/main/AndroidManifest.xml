@@ -46,6 +46,14 @@
         </provider>
     </application>
 
+    <!-- Lets the app see whether the phone has a speech screen for the assistant's microphone
+         button (Android 11+ package visibility). Not a permission. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <!-- Permissions (keep this list short; see docs/ANDROID.md) -->
 
     <!-- Checking GitHub Releases for updates and downloading an approved update. -->

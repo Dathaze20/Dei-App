@@ -16,6 +16,8 @@ import {
   usedProductIds,
   withCount,
   withoutCount,
+  withCountsCleared,
+  withClearUndone,
 } from '../utils/stockCounts';
 import {
   HistoryEntry,
@@ -254,6 +256,12 @@ export interface InventoryContextType {
   /** Explicitly turns an older case line of an item-ordered supplier into an item line. */
   convertOrderLineToItems: (productId: string) => void;
   clearOrder: () => void;
+  /**
+   * Replaces the order's lines in one step (v0.1.7, used by the assistant through
+   * utils/assistant/orderChanges.ts, which validates every change first). `change` gets the
+   * latest lines and returns the new ones, or null to change nothing.
+   */
+  editOrderItems: (change: (items: OrderItem[]) => OrderItem[] | null) => boolean;
   addProduct: (productData: Omit<Product, 'id' | 'currentStockUnits'>) => void;
   updateProduct: (productData: Product) => void;
   /**
@@ -274,6 +282,13 @@ export interface InventoryContextType {
   saveStockCount: (productId: string, units: number, source: CountSource) => SaveCountResult;
   /** Undo of counts just saved: removes each only if it is still that product's newest count. */
   undoStockCounts: (counts: readonly { productId: string; countedAt: string }[]) => boolean;
+  /**
+   * "Clear count" (v0.1.7): this one product goes back to "not counted". Its counts are kept for
+   * the record and never become current stock again. Reports success only after it is saved.
+   */
+  clearStockCount: (productId: string) => ClearCountResult;
+  /** Undo of a clear right after it (only while the product is still not counted). */
+  undoClearStockCount: (productId: string, clearedAt: string) => boolean;
   /** Adds several new products at once (bulk import). Never changes an existing product. */
   addProducts: (batch: Omit<Product, 'id' | 'currentStockUnits'>[]) => number;
   /** Saved orders, newest first (utils/orderHistory.ts). */
@@ -296,6 +311,10 @@ export type SaveHistoryResult =
   | { ok: false; reason: 'empty' | 'blocked' | 'write-failed' };
 
 export type DeleteProductResult = { ok: true } | { ok: false; reason: 'counts-unavailable' | 'write-failed' };
+
+export type ClearCountResult =
+  | { ok: true; clearedAt: string }
+  | { ok: false; reason: 'not-counted' | 'not-tracked' | 'missing-product' | 'blocked' | 'write-failed' };
 
 export type SaveCountResult =
   | { ok: true; count: StockCount }
@@ -397,6 +416,41 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     const next = counts.reduce((doc, c) => withoutCount(doc, c.productId, c.countedAt), stockCountsRef.current);
     return next === stockCountsRef.current || commitStockCounts(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const clearStockCount = useCallback(
+    (productId: string): ClearCountResult => {
+      const product = products.find(p => p.id === productId);
+      if (!product) return { ok: false, reason: 'missing-product' };
+      if (!resolveSupplierWorkflow(product.supplierId).countStock) return { ok: false, reason: 'not-tracked' };
+      if (isKeyBlocked(STOCK_COUNTS_KEY)) return { ok: false, reason: 'blocked' };
+      const clearedAt = new Date().toISOString();
+      const next = withCountsCleared(stockCountsRef.current, productId, clearedAt);
+      if (next === stockCountsRef.current) return { ok: false, reason: 'not-counted' };
+      if (!commitStockCounts(next)) return { ok: false, reason: isKeyBlocked(STOCK_COUNTS_KEY) ? 'blocked' : 'write-failed' };
+      return { ok: true, clearedAt };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [products],
+  );
+
+  const undoClearStockCount = useCallback((productId: string, clearedAt: string) => {
+    if (isKeyBlocked(STOCK_COUNTS_KEY)) return false;
+    const next = withClearUndone(stockCountsRef.current, productId, clearedAt);
+    return next !== stockCountsRef.current && commitStockCounts(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The newest order, also between a change and the next render (several assistant steps in a row).
+  const currentOrderRef = useRef(currentOrder);
+  currentOrderRef.current = currentOrder;
+  const editOrderItems = useCallback((change: (items: OrderItem[]) => OrderItem[] | null) => {
+    const next = change(currentOrderRef.current.items);
+    if (!next) return false;
+    const order = { ...currentOrderRef.current, items: next };
+    currentOrderRef.current = order;
+    setCurrentOrder(order);
+    return true;
   }, []);
 
   const updateDeliName = (newName: string) => {
@@ -587,6 +641,9 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
     getStock,
     saveStockCount,
     undoStockCounts,
+    clearStockCount,
+    undoClearStockCount,
+    editOrderItems,
     addProducts,
     orderHistory: orderHistoryDoc.entries,
     historyAvailable,

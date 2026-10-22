@@ -24,6 +24,7 @@ import {
   ArchiveBoxIcon,
   PhotoIcon,
   CameraIcon,
+  ClipboardListIcon,
 } from '../shared/icons';
 
 const row =
@@ -83,7 +84,7 @@ const CounterDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
               <nav className="flex-1 overflow-y-auto px-2 pb-2" aria-label={t('navMenu')}>
                 {(
                   [
-                    ['menuGroupStore', [['settings-store', t('storeProfile'), UserCircleIcon]]],
+                    ['menuGroupStore', [['settings-store', t('storeProfile'), UserCircleIcon], ['/counter/store', t('storeOrdering'), ClipboardListIcon]]],
                     ['menuGroupPreferences', [['settings-display', t('appearance'), SwatchIcon]]],
                     ['menuGroupData', [['settings-backup', t('menuBackup'), ArrowDownTrayIcon], ['settings-photos', t('productPhotos'), PhotoIcon], ['settings-restore', t('menuRestore'), ArrowUturnLeftIcon], ['/counter/orders/history', t('orderHistory'), ArchiveBoxIcon], ['/counter/shelf', t('shelfCheck'), CameraIcon]]],
                     ['menuGroupApp', [['settings-updates', t('menuUpdates'), SparklesIcon], ['settings-about', t('aboutApp'), InformationCircleIcon]]],
